@@ -1,0 +1,4 @@
+target/
+server/node_modules/
+*.wasm
+.claude/
