@@ -10,12 +10,17 @@ import {
   Range,
   Position,
   OptionalVersionedTextDocumentIdentifier,
+  CreateFile,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as fs from "fs/promises";
+import { pathToFileURL } from "url";
 import { FileStateManager } from "./file-state";
 import {
   isSopsEncrypted,
+  isDecryptedFile,
+  getDecryptedPath,
+  getEncryptedPath,
   detectFileType,
 } from "./sops-detector";
 import { SopsRunner } from "./sops-runner";
@@ -73,12 +78,45 @@ function uriToFilePath(uri: string): string {
   return uri;
 }
 
+function filePathToUri(filePath: string): string {
+  return pathToFileURL(filePath).toString();
+}
+
 /**
- * On file open: detect SOPS encryption and replace buffer with decrypted content.
+ * On file open: detect SOPS encryption and create a .decrypted~ sidecar file.
+ *
+ * If the opened file is a .decrypted~ sidecar, register it as managed.
+ * If the opened file is encrypted, decrypt and create the sidecar.
  */
 documents.onDidOpen(async (event) => {
   const { document } = event;
   const uri = document.uri;
+  const filePath = uriToFilePath(uri);
+
+  // Case 1: User opened a .decrypted~ sidecar file (after we created it, or manually)
+  if (isDecryptedFile(filePath)) {
+    // Already tracked? Skip.
+    if (stateManager.get(uri)) return;
+
+    // Register this sidecar — look up the companion encrypted file
+    const encryptedFilePath = getEncryptedPath(filePath);
+    try {
+      const encryptedContent = await fs.readFile(encryptedFilePath, "utf-8");
+      const fileType = detectFileType(encryptedFilePath);
+
+      if (!isSopsEncrypted(encryptedContent, fileType)) {
+        return; // Companion isn't encrypted, not our business
+      }
+
+      stateManager.init(uri, encryptedFilePath, encryptedContent, filePath, fileType);
+      connection.console.log(`SOPS: Registered sidecar ${filePath}`);
+    } catch {
+      // Companion file doesn't exist or can't be read — ignore
+    }
+    return;
+  }
+
+  // Case 2: User opened an encrypted file — create a .decrypted~ sidecar
   const content = document.getText();
   const fileType = detectFileType(uri);
 
@@ -86,41 +124,40 @@ documents.onDidOpen(async (event) => {
     return;
   }
 
-  const filePath = uriToFilePath(uri);
-  stateManager.init(uri, filePath, content, fileType);
+  const decryptedFilePath = getDecryptedPath(filePath);
+  const decryptedUri = filePathToUri(decryptedFilePath);
 
   try {
     const decryptedContent = await sopsRunner.decrypt(filePath, fileType);
 
-    const applied = await replaceBufferContent(uri, document, content, decryptedContent);
+    // Write the sidecar to disk
+    await fs.writeFile(decryptedFilePath, decryptedContent, "utf-8");
 
-    if (applied) {
-      stateManager.transition(uri, FileState.DECRYPTED);
-      connection.console.log(`SOPS: Decrypted ${filePath}`);
+    // Track state by the sidecar URI
+    stateManager.init(decryptedUri, filePath, content, decryptedFilePath, fileType);
+
+    // Open the sidecar in Zed via workspace/applyEdit (CreateFile + TextDocumentEdit)
+    const opened = await openDecryptedFile(decryptedUri, decryptedFilePath, decryptedContent);
+
+    if (opened) {
+      connection.console.log(`SOPS: Created and opened sidecar ${decryptedFilePath}`);
     } else {
-      stateManager.remove(uri);
-      connection.window.showWarningMessage(
-        "SOPS: Could not auto-decrypt. The file appears SOPS-encrypted."
+      connection.console.warn(`SOPS: Created sidecar but could not auto-open`);
+      connection.window.showInformationMessage(
+        `SOPS: Decrypted to ${decryptedFilePath} — open it to edit.`
       );
     }
   } catch (error: unknown) {
-    stateManager.remove(uri);
+    // Clean up sidecar on failure
+    await fs.unlink(decryptedFilePath).catch(() => {});
+    stateManager.remove(decryptedUri);
     const msg = error instanceof Error ? error.message : String(error);
     connection.window.showErrorMessage(`SOPS decrypt failed: ${msg}`);
   }
 });
 
 /**
- * On file save: re-encrypt if the file is managed by us.
- *
- * After Zed saves, the file on disk contains plaintext. We:
- * 1. Read the plaintext
- * 2. Re-encrypt the original file on disk
- * 3. Do NOT touch the buffer — it already has the user's plaintext
- *
- * We skip replaceBufferContent after save because workspace/applyEdit
- * marks the buffer dirty, which triggers Zed's autosave to overwrite
- * the encrypted file with plaintext again.
+ * On save of a .decrypted~ sidecar: re-encrypt the original file.
  */
 documents.onDidSave(async (event) => {
   const { document } = event;
@@ -129,38 +166,25 @@ documents.onDidSave(async (event) => {
 
   if (!ctx) return;
   if (ctx.state === FileState.ENCRYPTING) return;
-  if (ctx.state !== FileState.DECRYPTED) return;
 
   stateManager.transition(uri, FileState.ENCRYPTING);
 
   try {
-    const filePath = ctx.encryptedFilePath;
+    // Read the plaintext the user just saved
+    const newPlaintext = await fs.readFile(ctx.decryptedFilePath, "utf-8");
 
-    // Read what the user just saved to disk
-    const newPlaintext = await fs.readFile(filePath, "utf-8");
-
-    // If the saved content is already encrypted (e.g. Zed reloaded encrypted
-    // content from disk after a previous save), skip re-encryption.
-    if (isSopsEncrypted(newPlaintext, ctx.fileType)) {
-      stateManager.transition(uri, FileState.DECRYPTED);
-      connection.console.log(`SOPS: Saved content is already encrypted, skipping`);
-      return;
-    }
-
-    // Restore encrypted content so sops can re-encrypt
-    await fs.writeFile(filePath, ctx.encryptedContent, "utf-8");
+    // Restore encrypted content to the original file so sops can re-encrypt
+    await fs.writeFile(ctx.encryptedFilePath, ctx.encryptedContent, "utf-8");
 
     // Re-encrypt using the EDITOR trick (preserves keys & metadata)
-    await sopsRunner.reEncrypt(filePath, newPlaintext, ctx.fileType);
+    await sopsRunner.reEncrypt(ctx.encryptedFilePath, newPlaintext, ctx.fileType);
 
-    // Store the new encrypted content. The file on disk is now encrypted.
-    // Zed will detect the disk content differs from the buffer and reload,
-    // which triggers onDidOpen → automatic decryption again.
-    const newEncrypted = await fs.readFile(filePath, "utf-8");
+    // Update stored encrypted content
+    const newEncrypted = await fs.readFile(ctx.encryptedFilePath, "utf-8");
     stateManager.updateEncryptedContent(uri, newEncrypted);
     stateManager.transition(uri, FileState.DECRYPTED);
 
-    connection.console.log(`SOPS: Re-encrypted ${filePath} successfully`);
+    connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     connection.console.error(`SOPS: Re-encryption failed: ${msg}`);
@@ -170,45 +194,60 @@ documents.onDidSave(async (event) => {
 });
 
 /**
- * On close: restore encrypted content to disk.
+ * On close of a .decrypted~ sidecar: delete it from disk.
  */
-documents.onDidClose((event) => {
+documents.onDidClose(async (event) => {
   const uri = event.document.uri;
   const ctx = stateManager.get(uri);
 
-  if (ctx && ctx.encryptedContent) {
-    const filePath = ctx.encryptedFilePath;
-    fs.writeFile(filePath, ctx.encryptedContent, "utf-8").catch(() => {});
-    connection.console.log(`SOPS: Restored encrypted content on close: ${filePath}`);
-  }
+  if (!ctx) return;
+
+  // Delete the sidecar file (plaintext cleanup)
+  await fs.unlink(ctx.decryptedFilePath).catch(() => {});
+  connection.console.log(`SOPS: Deleted sidecar ${ctx.decryptedFilePath}`);
 
   stateManager.remove(uri);
 });
 
 /**
- * Replace the entire buffer content via workspace/applyEdit.
+ * Open a .decrypted~ sidecar file in Zed via workspace/applyEdit.
+ *
+ * Uses CreateFile + TextDocumentEdit which causes Zed to create the file
+ * and open it as a new tab.
  */
-async function replaceBufferContent(
-  uri: string,
-  document: TextDocument,
-  currentContent: string,
-  newContent: string
+async function openDecryptedFile(
+  decryptedUri: string,
+  decryptedFilePath: string,
+  content: string
 ): Promise<boolean> {
-  const fullRange = Range.create(
-    Position.create(0, 0),
-    document.positionAt(currentContent.length)
-  );
+  try {
+    // Read what's on disk to compute the edit range
+    const existingContent = await fs.readFile(decryptedFilePath, "utf-8");
+    const lines = existingContent.split("\n");
+    const lastLine = lines.length - 1;
+    const lastChar = lines[lastLine].length;
 
-  const result = await connection.workspace.applyEdit({
-    documentChanges: [
-      TextDocumentEdit.create(
-        OptionalVersionedTextDocumentIdentifier.create(uri, document.version),
-        [TextEdit.replace(fullRange, newContent)]
-      ),
-    ],
-  });
+    const result = await connection.workspace.applyEdit({
+      documentChanges: [
+        CreateFile.create(decryptedUri, { overwrite: true }),
+        TextDocumentEdit.create(
+          OptionalVersionedTextDocumentIdentifier.create(decryptedUri, null),
+          [
+            TextEdit.replace(
+              Range.create(Position.create(0, 0), Position.create(lastLine, lastChar)),
+              content
+            ),
+          ]
+        ),
+      ],
+    });
 
-  return result.applied;
+    return result.applied;
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    connection.console.error(`SOPS: Failed to open sidecar via applyEdit: ${msg}`);
+    return false;
+  }
 }
 
 documents.listen(connection);

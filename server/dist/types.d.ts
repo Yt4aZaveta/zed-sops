@@ -1,19 +1,17 @@
 export declare enum FileState {
-    /** File is confirmed SOPS-encrypted, not yet decrypted in buffer */
-    ENCRYPTED = "encrypted",
-    /** Buffer contains decrypted content, user is editing */
+    /** Sidecar created, user is editing the .decrypted~ file */
     DECRYPTED = "decrypted",
     /** Re-encryption in progress */
     ENCRYPTING = "encrypting"
 }
 export interface FileContext {
     state: FileState;
-    /** URI of the file open in the editor */
-    uri: string;
-    /** Absolute path to the encrypted file on disk */
+    /** Absolute path to the original encrypted file on disk */
     encryptedFilePath: string;
-    /** The current encrypted content */
+    /** The current encrypted content (used to restore before re-encrypt) */
     encryptedContent: string;
+    /** Absolute path to the .decrypted~ sidecar file */
+    decryptedFilePath: string;
     /** File type for sops --input-type/--output-type */
     fileType: SopsFileType;
 }

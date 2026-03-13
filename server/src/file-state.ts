@@ -1,40 +1,45 @@
 import { FileContext, FileState, SopsFileType } from "./types";
 
+/**
+ * Manages state for SOPS-managed files.
+ * Keyed by the decrypted sidecar file's URI (the file open in the editor).
+ */
 export class FileStateManager {
   private files: Map<string, FileContext> = new Map();
 
-  get(uri: string): FileContext | undefined {
-    return this.files.get(uri);
+  get(decryptedUri: string): FileContext | undefined {
+    return this.files.get(decryptedUri);
   }
 
   init(
-    uri: string,
+    decryptedUri: string,
     encryptedFilePath: string,
     encryptedContent: string,
+    decryptedFilePath: string,
     fileType: SopsFileType
   ): FileContext {
     const ctx: FileContext = {
-      state: FileState.ENCRYPTED,
-      uri,
+      state: FileState.DECRYPTED,
       encryptedFilePath,
       encryptedContent,
+      decryptedFilePath,
       fileType,
     };
-    this.files.set(uri, ctx);
+    this.files.set(decryptedUri, ctx);
     return ctx;
   }
 
-  transition(uri: string, state: FileState): void {
-    const ctx = this.files.get(uri);
+  transition(decryptedUri: string, state: FileState): void {
+    const ctx = this.files.get(decryptedUri);
     if (ctx) ctx.state = state;
   }
 
-  updateEncryptedContent(uri: string, content: string): void {
-    const ctx = this.files.get(uri);
+  updateEncryptedContent(decryptedUri: string, content: string): void {
+    const ctx = this.files.get(decryptedUri);
     if (ctx) ctx.encryptedContent = content;
   }
 
-  remove(uri: string): void {
-    this.files.delete(uri);
+  remove(decryptedUri: string): void {
+    this.files.delete(decryptedUri);
   }
 }

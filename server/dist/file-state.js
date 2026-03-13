@@ -2,36 +2,40 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FileStateManager = void 0;
 const types_1 = require("./types");
+/**
+ * Manages state for SOPS-managed files.
+ * Keyed by the decrypted sidecar file's URI (the file open in the editor).
+ */
 class FileStateManager {
     constructor() {
         this.files = new Map();
     }
-    get(uri) {
-        return this.files.get(uri);
+    get(decryptedUri) {
+        return this.files.get(decryptedUri);
     }
-    init(uri, encryptedFilePath, encryptedContent, fileType) {
+    init(decryptedUri, encryptedFilePath, encryptedContent, decryptedFilePath, fileType) {
         const ctx = {
-            state: types_1.FileState.ENCRYPTED,
-            uri,
+            state: types_1.FileState.DECRYPTED,
             encryptedFilePath,
             encryptedContent,
+            decryptedFilePath,
             fileType,
         };
-        this.files.set(uri, ctx);
+        this.files.set(decryptedUri, ctx);
         return ctx;
     }
-    transition(uri, state) {
-        const ctx = this.files.get(uri);
+    transition(decryptedUri, state) {
+        const ctx = this.files.get(decryptedUri);
         if (ctx)
             ctx.state = state;
     }
-    updateEncryptedContent(uri, content) {
-        const ctx = this.files.get(uri);
+    updateEncryptedContent(decryptedUri, content) {
+        const ctx = this.files.get(decryptedUri);
         if (ctx)
             ctx.encryptedContent = content;
     }
-    remove(uri) {
-        this.files.delete(uri);
+    remove(decryptedUri) {
+        this.files.delete(decryptedUri);
     }
 }
 exports.FileStateManager = FileStateManager;

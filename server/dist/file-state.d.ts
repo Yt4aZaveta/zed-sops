@@ -1,9 +1,13 @@
 import { FileContext, FileState, SopsFileType } from "./types";
+/**
+ * Manages state for SOPS-managed files.
+ * Keyed by the decrypted sidecar file's URI (the file open in the editor).
+ */
 export declare class FileStateManager {
     private files;
-    get(uri: string): FileContext | undefined;
-    init(uri: string, encryptedFilePath: string, encryptedContent: string, fileType: SopsFileType): FileContext;
-    transition(uri: string, state: FileState): void;
-    updateEncryptedContent(uri: string, content: string): void;
-    remove(uri: string): void;
+    get(decryptedUri: string): FileContext | undefined;
+    init(decryptedUri: string, encryptedFilePath: string, encryptedContent: string, decryptedFilePath: string, fileType: SopsFileType): FileContext;
+    transition(decryptedUri: string, state: FileState): void;
+    updateEncryptedContent(decryptedUri: string, content: string): void;
+    remove(decryptedUri: string): void;
 }
