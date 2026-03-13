@@ -2,9 +2,9 @@ id = "sops"
 name = "SOPS"
 version = "0.1.0"
 schema_version = 1
-authors = ["Mees Kalf <meeskalf@gmail.com>"]
+authors = ["Mees"]
 description = "Transparent SOPS encryption/decryption for Zed"
-repository = "https://github.com/meeskalf/zed-sops"
+repository = "https://github.com/meesk/zed-sops"
 
 [language_servers.sops-lsp]
 name = "SOPS LSP"
