@@ -24,7 +24,7 @@ import {
   detectFileType,
 } from "./sops-detector";
 import { SopsRunner } from "./sops-runner";
-import { FileState } from "./types";
+import { FileState, parseSopsSettings } from "./types";
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
@@ -44,10 +44,12 @@ let sopsRunner: SopsRunner;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
   const opts = (params.initializationOptions as Record<string, unknown>) || {};
 
-  sopsRunner = new SopsRunner({
-    sopsPath: (opts.sopsPath as string) || "sops",
-    env: (opts.env as Record<string, string>) || {},
-  });
+  sopsRunner = new SopsRunner(
+    parseSopsSettings({
+      sopsPath: (opts.sopsPath as string) || "sops",
+      env: (opts.env as Record<string, string>) || {},
+    })
+  );
 
   return {
     capabilities: {

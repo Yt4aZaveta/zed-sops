@@ -3,54 +3,79 @@ import { promisify } from "util";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
-import { SopsConfig, SopsFileType } from "./types";
+import { SopsFileType, SopsRunnerLike, SopsSettings } from "./types";
 
 const execFileAsync = promisify(execFile);
+const MAX_BUFFER = 10 * 1024 * 1024;
+const ERROR_CAP = 800;
 
-export class SopsRunner {
-  private config: SopsConfig;
+export function formatSopsError(error: unknown, timeoutMs?: number): string {
+  const err = error as {
+    killed?: boolean;
+    stderr?: string;
+    message?: string;
+  };
+  if (err && err.killed && timeoutMs !== undefined) {
+    return `sops timed out after ${timeoutMs}ms`;
+  }
+  const stderr = typeof err?.stderr === "string" ? err.stderr.trim() : "";
+  const raw =
+    stderr ||
+    (error instanceof Error ? error.message : String(error));
+  return raw.length > ERROR_CAP ? raw.slice(0, ERROR_CAP) : raw;
+}
 
-  constructor(config: SopsConfig) {
-    this.config = config;
+export class SopsRunner implements SopsRunnerLike {
+  private settings: SopsSettings;
+  private verifyStatus: "ok" | "missing" | undefined;
+
+  constructor(settings: SopsSettings) {
+    this.settings = settings;
   }
 
-  /**
-   * Verify that sops is installed and accessible.
-   */
-  async verify(): Promise<string> {
-    const { stdout } = await execFileAsync(this.config.sopsPath, ["--version"], {
-      env: { ...process.env, ...this.config.env },
-    });
-    return stdout.trim();
+  updateSettings(partial: Partial<SopsSettings>): void {
+    this.settings = { ...this.settings, ...partial };
   }
 
-  /**
-   * Decrypt a SOPS-encrypted file and return the plaintext content.
-   */
+  getVerifyStatus(): "ok" | "missing" | undefined {
+    return this.verifyStatus;
+  }
+
+  private env(): NodeJS.ProcessEnv {
+    return { ...process.env, ...this.settings.env };
+  }
+
+  async verify(): Promise<"ok" | "missing"> {
+    if (this.verifyStatus) return this.verifyStatus;
+    try {
+      await execFileAsync(this.settings.sopsPath, ["--version"], {
+        env: this.env(),
+        timeout: this.settings.timeoutMs,
+        maxBuffer: MAX_BUFFER,
+      });
+      this.verifyStatus = "ok";
+    } catch {
+      this.verifyStatus = "missing";
+    }
+    return this.verifyStatus;
+  }
+
   async decrypt(filePath: string, fileType: SopsFileType): Promise<string> {
     const { stdout } = await execFileAsync(
-      this.config.sopsPath,
+      this.settings.sopsPath,
       ["decrypt", "--input-type", fileType, "--output-type", fileType, filePath],
       {
-        env: { ...process.env, ...this.config.env },
-        maxBuffer: 10 * 1024 * 1024,
+        env: this.env(),
+        maxBuffer: MAX_BUFFER,
+        timeout: this.settings.timeoutMs,
       }
     );
     return stdout;
   }
 
-  /**
-   * Re-encrypt a file using the EDITOR trick.
-   *
-   * This preserves the original encryption keys and metadata because SOPS
-   * handles the re-encryption itself using its standard edit workflow:
-   * 1. Create a temp script that writes newContent to whatever file sops passes
-   * 2. Set EDITOR to this script
-   * 3. Run `sops <filepath>` — sops decrypts, calls "editor", re-encrypts
-   */
   async reEncrypt(
     filePath: string,
-    newContent: string,
+    plaintext: string,
     _fileType: SopsFileType
   ): Promise<void> {
     const tmpDir = os.tmpdir();
@@ -59,18 +84,26 @@ export class SopsRunner {
     const tmpEditorScript = path.join(tmpDir, `sops-editor-${id}.sh`);
 
     try {
-      await fs.writeFile(tmpContentFile, newContent, { mode: 0o600 });
+      await fs.writeFile(tmpContentFile, plaintext, {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
+      await fs.chmod(tmpContentFile, 0o600);
+      const editorScript = `#!/bin/sh\ncp "$SOPS_ZED_CONTENT" "$1"\n`;
+      await fs.writeFile(tmpEditorScript, editorScript, {
+        encoding: "utf-8",
+        mode: 0o755,
+      });
+      await fs.chmod(tmpEditorScript, 0o755);
 
-      const editorScript = `#!/bin/sh\ncp "${tmpContentFile}" "$1"\n`;
-      await fs.writeFile(tmpEditorScript, editorScript, { mode: 0o755 });
-
-      await execFileAsync(this.config.sopsPath, [filePath], {
+      await execFileAsync(this.settings.sopsPath, [filePath], {
         env: {
-          ...process.env,
-          ...this.config.env,
+          ...this.env(),
           EDITOR: tmpEditorScript,
+          SOPS_ZED_CONTENT: tmpContentFile,
         },
-        maxBuffer: 10 * 1024 * 1024,
+        maxBuffer: MAX_BUFFER,
+        timeout: this.settings.timeoutMs,
       });
     } finally {
       await fs.unlink(tmpContentFile).catch(() => {});
