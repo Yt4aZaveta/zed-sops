@@ -4,8 +4,8 @@
   "description": "SOPS Language Server for Zed",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.js",
+    "watch": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.js --watch",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

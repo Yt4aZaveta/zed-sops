@@ -4,7 +4,7 @@ set -e
 echo "Installing server dependencies..."
 cd server && npm install
 
-echo "Building TypeScript server..."
+echo "Building bundled language server..."
 npm run build
 cd ..
 

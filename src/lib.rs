@@ -1,6 +1,56 @@
-use zed_extension_api as zed;
+use zed_extension_api::{self as zed, serde_json::{json, Map, Value}, settings::LspSettings};
 
 struct SopsExtension;
+
+fn merge_objects(base: Value, overlay: Value) -> Value {
+    match (base, overlay) {
+        (Value::Object(mut base_map), Value::Object(overlay_map)) => {
+            for (key, value) in overlay_map {
+                base_map.insert(key, value);
+            }
+            Value::Object(base_map)
+        }
+        (_base, overlay) => overlay,
+    }
+}
+
+fn lsp_options(worktree: &zed::Worktree) -> Result<Value, String> {
+    let lsp = LspSettings::for_worktree("sops-lsp", worktree).unwrap_or_default();
+    let mut options = lsp.initialization_options.unwrap_or_else(|| json!({}));
+    if let Some(settings) = lsp.settings {
+        options = merge_objects(options, settings);
+    }
+    let mut map: Map<String, Value> = match options {
+        Value::Object(map) => map,
+        other => {
+            let mut map = Map::new();
+            map.insert("value".to_string(), other);
+            map
+        }
+    };
+    let sops_path_missing = match map.get("sopsPath") {
+        None => true,
+        Some(Value::String(s)) if s.is_empty() => true,
+        Some(Value::Null) => true,
+        _ => false,
+    };
+    if sops_path_missing {
+        let resolved = worktree
+            .which("sops")
+            .unwrap_or_else(|| "sops".to_string());
+        map.insert("sopsPath".to_string(), Value::String(resolved));
+    }
+    if !map.contains_key("env") {
+        map.insert("env".to_string(), json!({}));
+    }
+    if !map.contains_key("autoEdit") {
+        map.insert("autoEdit".to_string(), Value::Bool(true));
+    }
+    if !map.contains_key("timeoutMs") {
+        map.insert("timeoutMs".to_string(), json!(60_000));
+    }
+    Ok(Value::Object(map))
+}
 
 impl zed::Extension for SopsExtension {
     fn new() -> Self {
@@ -15,30 +65,12 @@ impl zed::Extension for SopsExtension {
         let work_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get work dir: {}", e))?;
 
-        // Install npm dependencies into the work directory if not present
-        if !work_dir.join("node_modules").exists() {
-            zed::npm_install_package("vscode-languageserver", &"9.0.1")
-                .map_err(|e| format!("Failed to install vscode-languageserver: {}", e))?;
-            zed::npm_install_package("vscode-languageserver-textdocument", &"1.0.12")
-                .map_err(|e| format!("Failed to install vscode-languageserver-textdocument: {}", e))?;
-        }
-
-        // Write server JS files (embedded at compile time) to the work directory.
-        // Always overwrite to ensure the latest version is deployed.
         let dist_dir = work_dir.join("dist");
         let server_entry = dist_dir.join("index.js");
         std::fs::create_dir_all(&dist_dir)
             .map_err(|e| format!("Failed to create dist dir: {}", e))?;
         std::fs::write(&server_entry, include_str!("../server/dist/index.js"))
             .map_err(|e| format!("Failed to write index.js: {}", e))?;
-        std::fs::write(dist_dir.join("types.js"), include_str!("../server/dist/types.js"))
-            .map_err(|e| format!("Failed to write types.js: {}", e))?;
-        std::fs::write(dist_dir.join("sops-detector.js"), include_str!("../server/dist/sops-detector.js"))
-            .map_err(|e| format!("Failed to write sops-detector.js: {}", e))?;
-        std::fs::write(dist_dir.join("sops-runner.js"), include_str!("../server/dist/sops-runner.js"))
-            .map_err(|e| format!("Failed to write sops-runner.js: {}", e))?;
-        std::fs::write(dist_dir.join("file-state.js"), include_str!("../server/dist/file-state.js"))
-            .map_err(|e| format!("Failed to write file-state.js: {}", e))?;
 
         Ok(zed::Command {
             command: zed::node_binary_path()?,
@@ -48,6 +80,22 @@ impl zed::Extension for SopsExtension {
             ],
             env: worktree.shell_env(),
         })
+    }
+
+    fn language_server_initialization_options(
+        &mut self,
+        _language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<zed::serde_json::Value>, String> {
+        Ok(Some(lsp_options(worktree)?))
+    }
+
+    fn language_server_workspace_configuration(
+        &mut self,
+        _language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<zed::serde_json::Value>, String> {
+        Ok(Some(lsp_options(worktree)?))
     }
 }
 

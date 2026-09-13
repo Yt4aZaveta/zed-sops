@@ -2,3 +2,5 @@ target/
 server/node_modules/
 *.wasm
 .claude/
+server/dist/*
+!server/dist/index.js
