@@ -1,11 +1,9 @@
 import * as path from "path";
 import { SopsFileType } from "./types";
 
-const DECRYPTED_PREFIX = ".decrypted~";
+const LEGACY_PREFIX = ".decrypted~";
+const NEW_SIDECAR_RE = /^(.*)\.decrypted(\.[^.]+)$/;
 
-/**
- * Detect if file content is SOPS-encrypted by checking for the sops metadata block.
- */
 export function isSopsEncrypted(content: string, fileType: SopsFileType): boolean {
   try {
     if (fileType === "json") {
@@ -14,67 +12,78 @@ export function isSopsEncrypted(content: string, fileType: SopsFileType): boolea
         typeof parsed === "object" &&
         parsed !== null &&
         typeof parsed.sops === "object" &&
+        parsed.sops !== null &&
         typeof parsed.sops.version === "string"
       );
     }
 
     if (fileType === "yaml") {
       const sopsMatch = content.match(/^sops:\s*$/m);
-      if (!sopsMatch) return false;
-      const afterSops = content.slice(sopsMatch.index! + sopsMatch[0].length);
-      return /^\s+version:\s+/m.test(afterSops);
+      if (!sopsMatch || sopsMatch.index === undefined) return false;
+      const afterSops = content.slice(sopsMatch.index + sopsMatch[0].length);
+      // Require space/tab indent on the version line; \s would also match the
+      // newline left after the sops: match and falsely accept column-0 version.
+      return /^[ \t]+version:\s+/m.test(afterSops);
     }
 
     if (fileType === "ini") {
       return content.includes("[sops]");
     }
 
-    if (fileType === "dotenv") {
-      return content.includes("sops_version=");
-    }
-
-    return false;
+    // toml is passed as binary; same heuristic
+    return (
+      content.includes("[sops]") ||
+      content.includes("sops.version") ||
+      content.includes("ENC[AES256_GCM")
+    );
   } catch {
     return false;
   }
 }
 
-/**
- * Check if a file path refers to a .decrypted~ sidecar file.
- */
 export function isDecryptedFile(filePath: string): boolean {
-  return path.basename(filePath).startsWith(DECRYPTED_PREFIX);
+  const name = path.basename(filePath);
+  return name.startsWith(LEGACY_PREFIX) || NEW_SIDECAR_RE.test(name);
 }
 
-/**
- * Get the .decrypted~ sidecar path for an encrypted file.
- * e.g. /path/to/secrets.yaml → /path/to/.decrypted~secrets.yaml
- */
 export function getDecryptedPath(encryptedFilePath: string): string {
   const dir = path.dirname(encryptedFilePath);
-  const name = path.basename(encryptedFilePath);
-  return path.join(dir, `${DECRYPTED_PREFIX}${name}`);
+  const parsed = path.parse(encryptedFilePath);
+  if (parsed.ext !== "") {
+    return path.join(dir, `${parsed.name}.decrypted${parsed.ext}`);
+  }
+  return path.join(dir, `${parsed.base}.decrypted`);
 }
 
-/**
- * Get the original encrypted file path from a .decrypted~ sidecar path.
- * e.g. /path/to/.decrypted~secrets.yaml → /path/to/secrets.yaml
- */
+export function getLegacyDecryptedPath(encryptedFilePath: string): string {
+  return path.join(
+    path.dirname(encryptedFilePath),
+    `${LEGACY_PREFIX}${path.basename(encryptedFilePath)}`
+  );
+}
+
 export function getEncryptedPath(decryptedFilePath: string): string {
   const dir = path.dirname(decryptedFilePath);
   const name = path.basename(decryptedFilePath);
-  return path.join(dir, name.slice(DECRYPTED_PREFIX.length));
+  if (name.startsWith(LEGACY_PREFIX)) {
+    return path.join(dir, name.slice(LEGACY_PREFIX.length));
+  }
+  const match = name.match(NEW_SIDECAR_RE);
+  if (match) {
+    return path.join(dir, `${match[1]}${match[2]}`);
+  }
+  return decryptedFilePath;
 }
 
-/**
- * Determine the SOPS file type from a file URI/path extension.
- * Handles both encrypted files and .decrypted~ sidecar files.
- */
-export function detectFileType(uri: string): SopsFileType {
-  const lower = uri.toLowerCase();
+export function possibleSidecarPaths(encryptedFilePath: string): string[] {
+  return [getDecryptedPath(encryptedFilePath), getLegacyDecryptedPath(encryptedFilePath)];
+}
+
+export function detectFileType(filePath: string): SopsFileType {
+  const lower = filePath.toLowerCase();
   if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "yaml";
   if (lower.endsWith(".json")) return "json";
   if (lower.endsWith(".ini")) return "ini";
-  if (lower.endsWith(".env") || lower.includes(".env.")) return "dotenv";
+  if (lower.endsWith(".toml")) return "binary";
   return "yaml";
 }
