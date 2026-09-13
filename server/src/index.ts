@@ -11,71 +11,65 @@ import {
   Position,
   OptionalVersionedTextDocumentIdentifier,
   CreateFile,
+  Diagnostic,
+  DiagnosticSeverity,
+  CodeAction,
+  CodeActionKind,
+  Command,
+  CodeActionParams,
+  ExecuteCommandParams,
+  DidChangeConfigurationParams,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as fs from "fs/promises";
-import { pathToFileURL } from "url";
-import { FileStateManager } from "./file-state";
+import * as path from "path";
+import { fileURLToPath, pathToFileURL } from "url";
+import { EditSessionRegistry } from "./edit-session";
+import { isAutoEditAllowed } from "./sops-config";
 import {
-  isSopsEncrypted,
-  isDecryptedFile,
-  getDecryptedPath,
-  getEncryptedPath,
   detectFileType,
+  getEncryptedPath,
+  isDecryptedFile,
+  isSopsEncrypted,
 } from "./sops-detector";
-import { SopsRunner } from "./sops-runner";
-import { FileState, parseSopsSettings } from "./types";
+import { formatSopsError, SopsRunner } from "./sops-runner";
+import {
+  DEFAULT_SOPS_SETTINGS,
+  parseSopsSettings,
+  SopsSettings,
+} from "./types";
+
+const COMMAND_EDIT = "sops.editDecrypted";
 
 process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
+  try {
+    connection.console.error(
+      `Uncaught Exception: ${error instanceof Error ? error.stack ?? error.message : String(error)}`
+    );
+  } catch {
+    // connection may not be usable
+  }
   process.exit(1);
-});
-
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
 });
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
-const stateManager = new FileStateManager();
 
-let sopsRunner: SopsRunner;
+let settings: SopsSettings = DEFAULT_SOPS_SETTINGS;
+let sopsRunner = new SopsRunner(settings);
+let registry = new EditSessionRegistry(sopsRunner);
+let workspaceFolders: string[] = [];
+let verifyPromise: Promise<"ok" | "missing"> = Promise.resolve("ok");
 
-connection.onInitialize((params: InitializeParams): InitializeResult => {
-  const opts = (params.initializationOptions as Record<string, unknown>) || {};
-
-  sopsRunner = new SopsRunner(
-    parseSopsSettings({
-      sopsPath: (opts.sopsPath as string) || "sops",
-      env: (opts.env as Record<string, string>) || {},
-    })
-  );
-
-  return {
-    capabilities: {
-      textDocumentSync: {
-        openClose: true,
-        change: TextDocumentSyncKind.Full,
-        save: { includeText: true },
-      },
-    },
-  };
-});
-
-connection.onInitialized(async () => {
-  const status = await sopsRunner.verify();
-  if (status === "ok") {
-    connection.console.log("SOPS LSP initialized (sops ok)");
-  } else {
-    connection.window.showWarningMessage(
-      "SOPS binary not found. Install sops and ensure it is on PATH, or set sopsPath in settings."
-    );
-  }
+process.on("unhandledRejection", (reason) => {
+  const msg =
+    reason instanceof Error ? reason.stack ?? reason.message : String(reason);
+  connection.console.error(`Unhandled Rejection: ${msg}`);
 });
 
 function uriToFilePath(uri: string): string {
-  if (uri.startsWith("file://")) {
-    return decodeURIComponent(uri.slice(7));
+  if (uri.startsWith("file:")) {
+    return fileURLToPath(uri);
   }
   return uri;
 }
@@ -84,151 +78,78 @@ function filePathToUri(filePath: string): string {
   return pathToFileURL(filePath).toString();
 }
 
-/**
- * On file open: detect SOPS encryption and create a .decrypted~ sidecar file.
- *
- * If the opened file is a .decrypted~ sidecar, register it as managed.
- * If the opened file is encrypted, decrypt and create the sidecar.
- */
-documents.onDidOpen(async (event) => {
-  const { document } = event;
-  const uri = document.uri;
-  const filePath = uriToFilePath(uri);
+function line0Range(text: string): Range {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  return Range.create(Position.create(0, 0), Position.create(0, firstLine.length));
+}
 
-  // Case 1: User opened a .decrypted~ sidecar file (after we created it, or manually)
-  if (isDecryptedFile(filePath)) {
-    // Already tracked? Skip.
-    if (stateManager.get(uri)) return;
+function infoDiagnostic(code: string, message: string, text: string): Diagnostic {
+  return {
+    range: line0Range(text),
+    message,
+    severity: DiagnosticSeverity.Information,
+    source: "sops",
+    code,
+  };
+}
 
-    // Register this sidecar — look up the companion encrypted file
-    const encryptedFilePath = getEncryptedPath(filePath);
-    try {
-      const encryptedContent = await fs.readFile(encryptedFilePath, "utf-8");
-      const fileType = detectFileType(encryptedFilePath);
+function isSidecarOpen(sidecarPath: string): boolean {
+  const uri = filePathToUri(sidecarPath);
+  return documents.get(uri) !== undefined;
+}
 
-      if (!isSopsEncrypted(encryptedContent, fileType)) {
-        return; // Companion isn't encrypted, not our business
-      }
-
-      stateManager.init(uri, encryptedFilePath, encryptedContent, filePath, fileType);
-      connection.console.log(`SOPS: Registered sidecar ${filePath}`);
-    } catch {
-      // Companion file doesn't exist or can't be read — ignore
-    }
+async function publishCiphertextDiagnostics(
+  uri: string,
+  text: string,
+  sidecarBasename?: string
+): Promise<void> {
+  if (sopsRunner.getVerifyStatus() === "missing") {
+    connection.sendDiagnostics({
+      uri,
+      diagnostics: [
+        infoDiagnostic("sops.unavailable", "SOPS binary not found", text),
+      ],
+    });
     return;
   }
-
-  // Case 2: User opened an encrypted file — create a .decrypted~ sidecar
-  const content = document.getText();
-  const fileType = detectFileType(uri);
-
-  if (!isSopsEncrypted(content, fileType)) {
+  if (sidecarBasename) {
+    connection.sendDiagnostics({
+      uri,
+      diagnostics: [
+        infoDiagnostic(
+          "sops.editing",
+          `SOPS: editing ${sidecarBasename}`,
+          text
+        ),
+      ],
+    });
     return;
   }
+  connection.sendDiagnostics({
+    uri,
+    diagnostics: [infoDiagnostic("sops.encrypted", "SOPS encrypted", text)],
+  });
+}
 
-  const decryptedFilePath = getDecryptedPath(filePath);
-  const decryptedUri = filePathToUri(decryptedFilePath);
+function publishSidecarManaged(uri: string, text: string): void {
+  connection.sendDiagnostics({
+    uri,
+    diagnostics: [
+      infoDiagnostic("sops.managed", "SOPS managed · save re-encrypts", text),
+    ],
+  });
+}
 
-  try {
-    const decryptedContent = await sopsRunner.decrypt(filePath, fileType);
-
-    // Write the sidecar to disk
-    await fs.writeFile(decryptedFilePath, decryptedContent, "utf-8");
-
-    // Track state by the sidecar URI
-    stateManager.init(decryptedUri, filePath, content, decryptedFilePath, fileType);
-
-    // Open the sidecar in Zed via workspace/applyEdit (CreateFile + TextDocumentEdit)
-    const opened = await openDecryptedFile(decryptedUri, decryptedFilePath, decryptedContent);
-
-    if (opened) {
-      connection.console.log(`SOPS: Created and opened sidecar ${decryptedFilePath}`);
-    } else {
-      connection.console.warn(`SOPS: Created sidecar but could not auto-open`);
-      connection.window.showInformationMessage(
-        `SOPS: Decrypted to ${decryptedFilePath} — open it to edit.`
-      );
-    }
-  } catch (error: unknown) {
-    // Clean up sidecar on failure
-    await fs.unlink(decryptedFilePath).catch(() => {});
-    stateManager.remove(decryptedUri);
-    const msg = error instanceof Error ? error.message : String(error);
-    connection.window.showErrorMessage(`SOPS decrypt failed: ${msg}`);
-  }
-});
-
-/**
- * On save of a .decrypted~ sidecar: re-encrypt the original file.
- */
-documents.onDidSave(async (event) => {
-  const { document } = event;
-  const uri = document.uri;
-  const ctx = stateManager.get(uri);
-
-  if (!ctx) return;
-  if (ctx.state === FileState.ENCRYPTING) return;
-
-  stateManager.transition(uri, FileState.ENCRYPTING);
-
-  try {
-    // Read the plaintext the user just saved
-    const newPlaintext = await fs.readFile(ctx.decryptedFilePath, "utf-8");
-
-    // Restore encrypted content to the original file so sops can re-encrypt
-    await fs.writeFile(ctx.encryptedFilePath, ctx.encryptedContent, "utf-8");
-
-    // Re-encrypt using the EDITOR trick (preserves keys & metadata)
-    await sopsRunner.reEncrypt(ctx.encryptedFilePath, newPlaintext, ctx.fileType);
-
-    // Update stored encrypted content
-    const newEncrypted = await fs.readFile(ctx.encryptedFilePath, "utf-8");
-    stateManager.updateEncryptedContent(uri, newEncrypted);
-    stateManager.transition(uri, FileState.DECRYPTED);
-
-    connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    connection.console.error(`SOPS: Re-encryption failed: ${msg}`);
-    connection.window.showErrorMessage(`SOPS re-encryption failed: ${msg}`);
-    stateManager.transition(uri, FileState.DECRYPTED);
-  }
-});
-
-/**
- * On close of a .decrypted~ sidecar: delete it from disk.
- */
-documents.onDidClose(async (event) => {
-  const uri = event.document.uri;
-  const ctx = stateManager.get(uri);
-
-  if (!ctx) return;
-
-  // Delete the sidecar file (plaintext cleanup)
-  await fs.unlink(ctx.decryptedFilePath).catch(() => {});
-  connection.console.log(`SOPS: Deleted sidecar ${ctx.decryptedFilePath}`);
-
-  stateManager.remove(uri);
-});
-
-/**
- * Open a .decrypted~ sidecar file in Zed via workspace/applyEdit.
- *
- * Uses CreateFile + TextDocumentEdit which causes Zed to create the file
- * and open it as a new tab.
- */
 async function openDecryptedFile(
   decryptedUri: string,
   decryptedFilePath: string,
   content: string
 ): Promise<boolean> {
   try {
-    // Read what's on disk to compute the edit range
     const existingContent = await fs.readFile(decryptedFilePath, "utf-8");
     const lines = existingContent.split("\n");
-    const lastLine = lines.length - 1;
-    const lastChar = lines[lastLine].length;
-
+    const lastLine = Math.max(lines.length - 1, 0);
+    const lastChar = (lines[lastLine] ?? "").length;
     const result = await connection.workspace.applyEdit({
       documentChanges: [
         CreateFile.create(decryptedUri, { overwrite: true }),
@@ -236,14 +157,16 @@ async function openDecryptedFile(
           OptionalVersionedTextDocumentIdentifier.create(decryptedUri, null),
           [
             TextEdit.replace(
-              Range.create(Position.create(0, 0), Position.create(lastLine, lastChar)),
+              Range.create(
+                Position.create(0, 0),
+                Position.create(lastLine, lastChar)
+              ),
               content
             ),
           ]
         ),
       ],
     });
-
     return result.applied;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -251,6 +174,269 @@ async function openDecryptedFile(
     return false;
   }
 }
+
+async function startEditSession(encryptedUri: string): Promise<void> {
+  const encryptedPath = uriToFilePath(encryptedUri);
+  const existing = registry.getByEncryptedPath(encryptedPath);
+  if (existing) {
+    const opened = await openDecryptedFile(
+      existing.decryptedUri,
+      existing.decryptedFilePath,
+      await fs.readFile(existing.decryptedFilePath, "utf-8").catch(() => "")
+    );
+    if (!opened) {
+      connection.window.showInformationMessage(
+        `SOPS: decrypted to ${existing.decryptedFilePath} — open it to edit.`
+      );
+    }
+    return;
+  }
+
+  let encryptedContent: string;
+  try {
+    encryptedContent =
+      documents.get(encryptedUri)?.getText() ??
+      (await fs.readFile(encryptedPath, "utf-8"));
+  } catch (error) {
+    connection.window.showErrorMessage(formatSopsError(error, settings.timeoutMs));
+    return;
+  }
+  const fileType = detectFileType(encryptedPath);
+  try {
+    const { session, plaintext } = await registry.start(
+      encryptedPath,
+      encryptedContent,
+      fileType
+    );
+    const opened = await openDecryptedFile(
+      session.decryptedUri,
+      session.decryptedFilePath,
+      plaintext
+    );
+    if (!opened) {
+      connection.window.showInformationMessage(
+        `SOPS: decrypted to ${session.decryptedFilePath} — open it to edit.`
+      );
+    }
+    const cipherDoc = documents.get(encryptedUri);
+    await publishCiphertextDiagnostics(
+      encryptedUri,
+      cipherDoc?.getText() ?? encryptedContent,
+      path.basename(session.decryptedFilePath)
+    );
+    const sidecarDoc = documents.get(session.decryptedUri);
+    publishSidecarManaged(
+      session.decryptedUri,
+      sidecarDoc?.getText() ?? plaintext
+    );
+  } catch (error: unknown) {
+    const msg = formatSopsError(error, settings.timeoutMs);
+    connection.window.showErrorMessage(msg);
+  }
+}
+
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+  settings = parseSopsSettings(params.initializationOptions);
+  sopsRunner = new SopsRunner(settings);
+  registry = new EditSessionRegistry(sopsRunner);
+  workspaceFolders = (params.workspaceFolders ?? []).map((folder) =>
+    uriToFilePath(folder.uri)
+  );
+  return {
+    capabilities: {
+      textDocumentSync: {
+        openClose: true,
+        change: TextDocumentSyncKind.Full,
+        save: { includeText: true },
+      },
+      codeActionProvider: true,
+      executeCommandProvider: { commands: [COMMAND_EDIT] },
+    },
+  };
+});
+
+connection.onInitialized(() => {
+  verifyPromise = sopsRunner.verify().then((status) => {
+    if (status === "missing") {
+      connection.window.showWarningMessage(
+        "SOPS binary not found. Install sops and ensure it is on PATH, or set lsp.sops-lsp.settings.sopsPath."
+      );
+    } else {
+      connection.console.log("SOPS LSP initialized");
+    }
+    return status;
+  });
+});
+
+function settingsFromChange(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const obj = raw as Record<string, unknown>;
+  if (
+    obj.sopsPath !== undefined ||
+    obj.autoEdit !== undefined ||
+    obj.timeoutMs !== undefined ||
+    obj.env !== undefined
+  ) {
+    return obj;
+  }
+  const lsp = obj.lsp;
+  if (lsp && typeof lsp === "object") {
+    const server = (lsp as Record<string, unknown>)["sops-lsp"];
+    if (server && typeof server === "object") {
+      const nested = server as Record<string, unknown>;
+      return nested.settings ?? nested;
+    }
+  }
+  return raw;
+}
+
+connection.onDidChangeConfiguration((change: DidChangeConfigurationParams) => {
+  settings = parseSopsSettings(settingsFromChange(change.settings), settings);
+  sopsRunner.updateSettings(settings);
+});
+
+connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
+  const fromDiag = params.context.diagnostics.some(
+    (d) =>
+      d.source === "sops" &&
+      (d.code === "sops.encrypted" || d.code === "sops.unavailable")
+  );
+  const filePath = uriToFilePath(params.textDocument.uri);
+  if (isDecryptedFile(filePath)) return [];
+  const doc = documents.get(params.textDocument.uri);
+  const encrypted =
+    !!doc && isSopsEncrypted(doc.getText(), detectFileType(filePath));
+  if (!fromDiag && !encrypted) return [];
+  return [
+    CodeAction.create(
+      "SOPS: Edit decrypted",
+      Command.create("SOPS: Edit decrypted", COMMAND_EDIT, params.textDocument.uri),
+      CodeActionKind.QuickFix
+    ),
+  ];
+});
+
+connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
+  if (params.command !== COMMAND_EDIT) return;
+  const uri = params.arguments?.[0];
+  if (typeof uri !== "string") return;
+  await startEditSession(uri);
+});
+
+documents.onDidOpen(async (event) => {
+  const { document } = event;
+  const uri = document.uri;
+  const filePath = uriToFilePath(uri);
+
+  if (isDecryptedFile(filePath)) {
+    if (registry.getByDecryptedUri(uri)) {
+      publishSidecarManaged(uri, document.getText());
+      return;
+    }
+    const encryptedFilePath = getEncryptedPath(filePath);
+    try {
+      const encryptedContent = await fs.readFile(encryptedFilePath, "utf-8");
+      const fileType = detectFileType(encryptedFilePath);
+      if (!isSopsEncrypted(encryptedContent, fileType)) return;
+      await registry.adopt(
+        filePath,
+        encryptedFilePath,
+        encryptedContent,
+        fileType
+      );
+      publishSidecarManaged(uri, document.getText());
+      const encUri = filePathToUri(encryptedFilePath);
+      const encDoc = documents.get(encUri);
+      if (encDoc) {
+        await publishCiphertextDiagnostics(
+          encUri,
+          encDoc.getText(),
+          path.basename(filePath)
+        );
+      }
+    } catch {
+      // Companion missing — ignore
+    }
+    return;
+  }
+
+  const content = document.getText();
+  const fileType = detectFileType(filePath);
+  if (!isSopsEncrypted(content, fileType)) {
+    connection.sendDiagnostics({ uri, diagnostics: [] });
+    return;
+  }
+
+  await verifyPromise;
+  await publishCiphertextDiagnostics(uri, content);
+
+  await registry.deleteOrphanSidecars(filePath, isSidecarOpen);
+
+  const session = registry.getByEncryptedPath(filePath);
+  if (session) {
+    await publishCiphertextDiagnostics(
+      uri,
+      content,
+      path.basename(session.decryptedFilePath)
+    );
+    return;
+  }
+
+  void (async () => {
+    try {
+      if (
+        await isAutoEditAllowed(filePath, settings, workspaceFolders, (msg) =>
+          connection.console.warn(msg)
+        )
+      ) {
+        await startEditSession(uri);
+      }
+    } catch (error) {
+      connection.console.error(formatSopsError(error, settings.timeoutMs));
+    }
+  })();
+});
+
+documents.onDidSave(async (event) => {
+  const { document } = event;
+  const ctx = registry.getByDecryptedUri(document.uri);
+  if (!ctx) return;
+  // includeText keeps the in-memory document current; that is the plaintext.
+  // Fall back to the sidecar on disk only if getText is unavailable.
+  const plaintext =
+    document.getText() ??
+    (await fs.readFile(ctx.decryptedFilePath, "utf-8"));
+  try {
+    await registry.save(document.uri, plaintext);
+    connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
+  } catch (error: unknown) {
+    const msg = formatSopsError(error, settings.timeoutMs);
+    connection.console.error(`SOPS: Re-encryption failed: ${msg}`);
+    connection.window.showErrorMessage(msg);
+  }
+});
+
+documents.onDidClose(async (event) => {
+  const uri = event.document.uri;
+  const filePath = uriToFilePath(uri);
+
+  if (isDecryptedFile(filePath)) {
+    const session = registry.getByDecryptedUri(uri);
+    const encryptedFilePath = session?.encryptedFilePath;
+    await registry.close(uri);
+    connection.sendDiagnostics({ uri, diagnostics: [] });
+    if (encryptedFilePath) {
+      const encUri = filePathToUri(encryptedFilePath);
+      const encDoc = documents.get(encUri);
+      if (encDoc) {
+        await publishCiphertextDiagnostics(encUri, encDoc.getText());
+      }
+    }
+    return;
+  }
+
+  connection.sendDiagnostics({ uri, diagnostics: [] });
+});
 
 documents.listen(connection);
 connection.listen();
