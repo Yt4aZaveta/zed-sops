@@ -63,10 +63,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 });
 
 connection.onInitialized(async () => {
-  try {
-    const version = await sopsRunner.verify();
-    connection.console.log(`SOPS LSP initialized (sops ${version})`);
-  } catch {
+  const status = await sopsRunner.verify();
+  if (status === "ok") {
+    connection.console.log("SOPS LSP initialized (sops ok)");
+  } else {
     connection.window.showWarningMessage(
       "SOPS binary not found. Install sops and ensure it is on PATH, or set sopsPath in settings."
     );
