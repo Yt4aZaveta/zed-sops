@@ -8,4 +8,4 @@ repository = "https://github.com/meesk/zed-sops"
 
 [language_servers.sops-lsp]
 name = "SOPS LSP"
-languages = ["YAML", "JSON", "TOML", "Plain Text"]
+languages = ["YAML", "JSON", "TOML"]
