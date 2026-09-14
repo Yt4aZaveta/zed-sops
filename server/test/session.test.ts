@@ -75,6 +75,24 @@ describe("EditSessionRegistry.start", () => {
     assert.equal(await fs.readFile(sidecar, "utf-8"), "user file\n");
     assert.equal(runner.decryptCalls, 0);
   });
+
+  it("records the caller snapshot as-is (callers must pass disk bytes)", async () => {
+    const dir = await makeTempDir();
+    const enc = path.join(dir, "secrets.yaml");
+    await writeFile(enc, SOPS_YAML);
+    const runner = mockRunner();
+    const registry = new EditSessionRegistry(runner);
+    const dirty = SOPS_YAML + "# unsaved buffer\n";
+    const { session } = await registry.start(enc, dirty, "yaml");
+    assert.equal(session.encryptedContent, dirty);
+    await assert.rejects(
+      () => registry.save(session.decryptedUri, "plain\n"),
+      /changed on disk; not re-encrypting/
+    );
+    assert.deepEqual(runner.reEncryptCalls, []);
+    assert.equal(session.state, FileState.DECRYPTED);
+    assert.equal(session.pending, undefined);
+  });
 });
 
 describe("EditSessionRegistry.save", () => {
@@ -141,6 +159,89 @@ describe("EditSessionRegistry.save", () => {
     assert.equal(await fs.readFile(enc, "utf-8"), SOPS_YAML);
     await fs.access(session.decryptedFilePath);
     assert.equal(session.state, FileState.DECRYPTED);
+    assert.equal(session.pending, undefined);
+    assert.equal(session.encryptedContent, SOPS_YAML);
+  });
+
+  it("clears pending when a queued save's in-flight reEncrypt throws", async () => {
+    const dir = await makeTempDir();
+    const enc = path.join(dir, "secrets.yaml");
+    await writeFile(enc, SOPS_YAML);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let started = 0;
+    const runner = mockRunner({
+      async reEncrypt() {
+        started += 1;
+        if (started === 1) await gate;
+        await writeFile(enc, "partial-corrupt\n");
+        throw new Error("sops failed");
+      },
+    });
+    const registry = new EditSessionRegistry(runner);
+    const { session } = await registry.start(enc, SOPS_YAML, "yaml");
+    const first = registry.save(session.decryptedUri, "first\n");
+    while (started === 0) {
+      await new Promise((r) => setImmediate(r));
+    }
+    const second = registry.save(session.decryptedUri, "second\n");
+    release();
+    await assert.rejects(() => first, /sops failed/);
+    await second;
+    assert.equal(session.pending, undefined);
+    assert.equal(session.state, FileState.DECRYPTED);
+    assert.equal(await fs.readFile(enc, "utf-8"), SOPS_YAML);
+  });
+
+  it("keeps the ciphertext backup when restore after reEncrypt failure also fails", async () => {
+    const dir = await makeTempDir();
+    const enc = path.join(dir, "secrets.yaml");
+    await writeFile(enc, SOPS_YAML);
+    const runner = mockRunner({
+      async reEncrypt() {
+        await fs.unlink(enc);
+        await fs.mkdir(enc);
+        throw new Error("sops failed");
+      },
+    });
+    const registry = new EditSessionRegistry(runner);
+    const { session } = await registry.start(enc, SOPS_YAML, "yaml");
+    let backupPath = "";
+    await assert.rejects(
+      () => registry.save(session.decryptedUri, "plain\n"),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        const match = err.message.match(/Ciphertext backup remains at (.+)$/);
+        assert.ok(match, err.message);
+        backupPath = match[1];
+        assert.match(err.message, /sops failed/);
+        return true;
+      }
+    );
+    assert.equal(await fs.readFile(backupPath, "utf-8"), SOPS_YAML);
+    assert.equal(session.state, FileState.DECRYPTED);
+    assert.equal(session.pending, undefined);
+    await fs.unlink(backupPath);
+  });
+
+  it("does not update the snapshot if post-encrypt ciphertext read fails", async () => {
+    const dir = await makeTempDir();
+    const enc = path.join(dir, "secrets.yaml");
+    await writeFile(enc, SOPS_YAML);
+    const runner = mockRunner({
+      async reEncrypt() {
+        await fs.unlink(enc);
+      },
+    });
+    const registry = new EditSessionRegistry(runner);
+    const { session } = await registry.start(enc, SOPS_YAML, "yaml");
+    session.pending = "queued\n";
+    await assert.rejects(() => registry.save(session.decryptedUri, "plain\n"));
+    assert.equal(session.encryptedContent, SOPS_YAML);
+    assert.equal(session.state, FileState.DECRYPTED);
+    assert.equal(session.pending, undefined);
   });
 });
 

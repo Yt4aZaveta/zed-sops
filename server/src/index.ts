@@ -192,11 +192,11 @@ async function startEditSession(encryptedUri: string): Promise<void> {
     return;
   }
 
+  // Snapshot must be disk bytes: sops and encryptLoop both read the file.
+  // An unsaved ciphertext buffer would make every sidecar save look stale.
   let encryptedContent: string;
   try {
-    encryptedContent =
-      documents.get(encryptedUri)?.getText() ??
-      (await fs.readFile(encryptedPath, "utf-8"));
+    encryptedContent = await fs.readFile(encryptedPath, "utf-8");
   } catch (error) {
     connection.window.showErrorMessage(formatSopsError(error, settings.timeoutMs));
     return;

@@ -63,6 +63,8 @@ export class EditSessionRegistry {
     this.byDecryptedPath.delete(path.resolve(session.decryptedFilePath));
   }
 
+  // `encryptedContent` must be on-disk ciphertext (`fs.readFile`), not an
+  // unsaved editor buffer. encryptLoop compares disk to this snapshot.
   async start(
     encryptedFilePath: string,
     encryptedContent: string,
@@ -138,10 +140,10 @@ export class EditSessionRegistry {
     session.state = FileState.ENCRYPTING;
     try {
       await this.encryptLoop(session, plaintext);
-    } finally {
-      if (session.state === FileState.ENCRYPTING) {
-        session.state = FileState.DECRYPTED;
-      }
+    } catch (error) {
+      session.pending = undefined;
+      session.state = FileState.DECRYPTED;
+      throw error;
     }
   }
 
@@ -150,8 +152,6 @@ export class EditSessionRegistry {
     for (;;) {
       const onDisk = await fs.readFile(session.encryptedFilePath, "utf-8");
       if (onDisk !== session.encryptedContent) {
-        session.state = FileState.DECRYPTED;
-        session.pending = undefined;
         throw new Error(
           `SOPS: ${session.encryptedFilePath} changed on disk; not re-encrypting.`
         );
@@ -167,25 +167,41 @@ export class EditSessionRegistry {
           mode: 0o600,
         });
         await fs.chmod(backupPath, 0o600);
-        try {
-          await this.runner.reEncrypt(
-            session.encryptedFilePath,
-            current,
-            session.fileType
-          );
-        } catch (error) {
-          await fs.copyFile(backupPath, session.encryptedFilePath);
-          session.state = FileState.DECRYPTED;
-          session.pending = undefined;
-          throw error;
-        }
-        session.encryptedContent = await fs.readFile(
-          session.encryptedFilePath,
-          "utf-8"
-        );
-      } finally {
+      } catch (error) {
         await fs.unlink(backupPath).catch(() => {});
+        throw error;
       }
+
+      try {
+        await this.runner.reEncrypt(
+          session.encryptedFilePath,
+          current,
+          session.fileType
+        );
+      } catch (error) {
+        try {
+          await fs.copyFile(backupPath, session.encryptedFilePath);
+        } catch (restoreError) {
+          const original = error instanceof Error ? error.message : String(error);
+          const restore =
+            restoreError instanceof Error
+              ? restoreError.message
+              : String(restoreError);
+          // Keep the backup; ciphertext may otherwise be the only remaining copy.
+          throw new Error(
+            `SOPS: re-encrypt failed (${original}); restore failed (${restore}). Ciphertext backup remains at ${backupPath}`
+          );
+        }
+        await fs.unlink(backupPath).catch(() => {});
+        throw error;
+      }
+
+      await fs.unlink(backupPath).catch(() => {});
+
+      session.encryptedContent = await fs.readFile(
+        session.encryptedFilePath,
+        "utf-8"
+      );
 
       if (session.pending !== undefined) {
         current = session.pending;
