@@ -1,4 +1,8 @@
-use zed_extension_api::{self as zed, serde_json::{json, Map, Value}, settings::LspSettings};
+use zed_extension_api::{
+    self as zed,
+    serde_json::{json, Map, Value},
+    settings::LspSettings,
+};
 
 struct SopsExtension;
 
@@ -35,9 +39,7 @@ fn lsp_options(worktree: &zed::Worktree) -> Result<Value, String> {
         _ => false,
     };
     if sops_path_missing {
-        let resolved = worktree
-            .which("sops")
-            .unwrap_or_else(|| "sops".to_string());
+        let resolved = worktree.which("sops").unwrap_or_else(|| "sops".to_string());
         map.insert("sopsPath".to_string(), Value::String(resolved));
     }
     if !map.contains_key("env") {
@@ -46,9 +48,19 @@ fn lsp_options(worktree: &zed::Worktree) -> Result<Value, String> {
     if !map.contains_key("autoEdit") {
         map.insert("autoEdit".to_string(), Value::Bool(true));
     }
+    if !map.contains_key("autoEditAll") {
+        map.insert("autoEditAll".to_string(), Value::Bool(false));
+    }
     if !map.contains_key("timeoutMs") {
         map.insert("timeoutMs".to_string(), json!(60_000));
     }
+    let state_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get extension work dir: {e}"))?
+        .join("state");
+    map.insert(
+        "stateDir".to_string(),
+        Value::String(state_dir.to_string_lossy().to_string()),
+    );
     Ok(Value::Object(map))
 }
 
@@ -62,15 +74,28 @@ impl zed::Extension for SopsExtension {
         _language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<zed::Command, String> {
-        let work_dir = std::env::current_dir()
-            .map_err(|e| format!("Failed to get work dir: {}", e))?;
+        let work_dir =
+            std::env::current_dir().map_err(|e| format!("Failed to get work dir: {}", e))?;
 
         let dist_dir = work_dir.join("dist");
         let server_entry = dist_dir.join("index.js");
         std::fs::create_dir_all(&dist_dir)
             .map_err(|e| format!("Failed to create dist dir: {}", e))?;
-        std::fs::write(&server_entry, include_str!("../server/dist/index.js"))
-            .map_err(|e| format!("Failed to write index.js: {}", e))?;
+        let bundle = include_str!("../server/dist/index.js").as_bytes();
+        let needs_write = std::fs::read(&server_entry)
+            .map(|old| old != bundle)
+            .unwrap_or(true);
+        if needs_write {
+            let temp = dist_dir.join(format!("index.js.{}.tmp", std::process::id()));
+            let mut file = std::fs::File::create(&temp)
+                .map_err(|e| format!("Failed to create temporary index.js: {}", e))?;
+            use std::io::Write;
+            file.write_all(bundle)
+                .and_then(|_| file.sync_all())
+                .map_err(|e| format!("Failed to write index.js: {}", e))?;
+            std::fs::rename(&temp, &server_entry)
+                .map_err(|e| format!("Failed to publish index.js: {}", e))?;
+        }
 
         Ok(zed::Command {
             command: zed::node_binary_path()?,

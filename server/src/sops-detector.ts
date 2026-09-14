@@ -2,7 +2,8 @@ import * as path from "path";
 import { SopsFileType } from "./types";
 
 const LEGACY_PREFIX = ".decrypted~";
-const NEW_SIDECAR_RE = /^(.*)\.decrypted(\.[^.]+)$/;
+const DOT_PREFIX = ".decrypted.";
+const INFIX_SIDECAR_RE = /^(.*)\.decrypted(\.[^.]+)$/;
 
 export function isSopsEncrypted(content: string, fileType: SopsFileType): boolean {
   try {
@@ -43,10 +44,21 @@ export function isSopsEncrypted(content: string, fileType: SopsFileType): boolea
 
 export function isDecryptedFile(filePath: string): boolean {
   const name = path.basename(filePath);
-  return name.startsWith(LEGACY_PREFIX) || NEW_SIDECAR_RE.test(name);
+  return (
+    name.startsWith(LEGACY_PREFIX) ||
+    name.startsWith(DOT_PREFIX) ||
+    INFIX_SIDECAR_RE.test(name)
+  );
 }
 
 export function getDecryptedPath(encryptedFilePath: string): string {
+  return path.join(
+    path.dirname(encryptedFilePath),
+    `${DOT_PREFIX}${path.basename(encryptedFilePath)}`
+  );
+}
+
+export function getInfixDecryptedPath(encryptedFilePath: string): string {
   const dir = path.dirname(encryptedFilePath);
   const parsed = path.parse(encryptedFilePath);
   if (parsed.ext !== "") {
@@ -68,7 +80,10 @@ export function getEncryptedPath(decryptedFilePath: string): string {
   if (name.startsWith(LEGACY_PREFIX)) {
     return path.join(dir, name.slice(LEGACY_PREFIX.length));
   }
-  const match = name.match(NEW_SIDECAR_RE);
+  if (name.startsWith(DOT_PREFIX)) {
+    return path.join(dir, name.slice(DOT_PREFIX.length));
+  }
+  const match = name.match(INFIX_SIDECAR_RE);
   if (match) {
     return path.join(dir, `${match[1]}${match[2]}`);
   }
@@ -76,7 +91,11 @@ export function getEncryptedPath(decryptedFilePath: string): string {
 }
 
 export function possibleSidecarPaths(encryptedFilePath: string): string[] {
-  return [getDecryptedPath(encryptedFilePath), getLegacyDecryptedPath(encryptedFilePath)];
+  return [
+    getDecryptedPath(encryptedFilePath),
+    getInfixDecryptedPath(encryptedFilePath),
+    getLegacyDecryptedPath(encryptedFilePath),
+  ];
 }
 
 export function detectFileType(filePath: string): SopsFileType {

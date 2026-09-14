@@ -122,7 +122,7 @@ describe("isAutoEditAllowed", () => {
     await writeFile(path.join(root, ".sops.yaml"), catchAll);
     await writeFile(file, "a: 1\n");
     assert.equal(
-      await isAutoEditAllowed(file, { autoEdit: false }, [root]),
+      await isAutoEditAllowed(file, { autoEdit: false, autoEditAll: false }, [root]),
       false
     );
   });
@@ -133,7 +133,7 @@ describe("isAutoEditAllowed", () => {
     await writeFile(path.join(root, ".sops.yaml"), catchAll);
     await writeFile(file, "a: 1\n");
     assert.equal(
-      await isAutoEditAllowed(file, { autoEdit: true }, [root]),
+      await isAutoEditAllowed(file, { autoEdit: true, autoEditAll: false }, [root]),
       true
     );
   });
@@ -144,7 +144,7 @@ describe("isAutoEditAllowed", () => {
     await writeFile(path.join(root, ".sops.yaml"), catchAll);
     await writeFile(file, "a: 1\n");
     assert.equal(
-      await isAutoEditAllowed(file, { autoEdit: true }, [root]),
+      await isAutoEditAllowed(file, { autoEdit: true, autoEditAll: false }, [root]),
       false
     );
   });
@@ -154,7 +154,49 @@ describe("isAutoEditAllowed", () => {
     const file = path.join(root, "secrets.yaml");
     await writeFile(file, "a: 1\n");
     assert.equal(
-      await isAutoEditAllowed(file, { autoEdit: true }, [root]),
+      await isAutoEditAllowed(file, { autoEdit: true, autoEditAll: false }, [root]),
+      false
+    );
+  });
+
+  it("is true for autoEditAll without a .sops.yaml", async () => {
+    const root = await makeTempDir();
+    const file = path.join(root, "outside", "secrets.yaml");
+    await writeFile(file, "a: 1\n");
+    assert.equal(
+      await isAutoEditAllowed(
+        file,
+        { autoEdit: true, autoEditAll: true },
+        [root]
+      ),
+      true
+    );
+  });
+
+  it("is false for autoEditAll when autoEdit is false", async () => {
+    const root = await makeTempDir();
+    const file = path.join(root, "secrets.yaml");
+    await writeFile(file, "a: 1\n");
+    assert.equal(
+      await isAutoEditAllowed(
+        file,
+        { autoEdit: false, autoEditAll: true },
+        [root]
+      ),
+      false
+    );
+  });
+
+  it("is false for autoEditAll when the path contains /.git/", async () => {
+    const root = await makeTempDir();
+    const file = path.join(root, ".git", "secrets.yaml");
+    await writeFile(file, "a: 1\n");
+    assert.equal(
+      await isAutoEditAllowed(
+        file,
+        { autoEdit: true, autoEditAll: true },
+        [root]
+      ),
       false
     );
   });

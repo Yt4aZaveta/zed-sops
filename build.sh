@@ -1,11 +1,13 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-echo "Installing server dependencies..."
-cd server && npm install
-
-echo "Building bundled language server..."
+cd server
+npm ci
+npm test
 npm run build
 cd ..
 
-echo "Build complete."
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cargo check --target wasm32-wasip2

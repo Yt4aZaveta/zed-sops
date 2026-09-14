@@ -1071,8 +1071,8 @@ var require_semaphore = __commonJS({
         this._waiting = [];
       }
       lock(thunk) {
-        return new Promise((resolve3, reject) => {
-          this._waiting.push({ thunk, resolve: resolve3, reject });
+        return new Promise((resolve4, reject) => {
+          this._waiting.push({ thunk, resolve: resolve4, reject });
           this.runNext();
         });
       }
@@ -2562,9 +2562,9 @@ ${JSON.stringify(message, null, 4)}`);
           if (typeof cancellationStrategy.sender.enableCancellation === "function") {
             cancellationStrategy.sender.enableCancellation(requestMessage);
           }
-          return new Promise(async (resolve3, reject) => {
+          return new Promise(async (resolve4, reject) => {
             const resolveWithCleanup = (r) => {
-              resolve3(r);
+              resolve4(r);
               cancellationStrategy.sender.cleanup(id);
               disposable?.dispose();
             };
@@ -2975,10 +2975,10 @@ var require_ril = __commonJS({
         return api_1.Disposable.create(() => this.stream.off("end", listener));
       }
       write(data, encoding) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve4, reject) => {
           const callback = (error) => {
             if (error === void 0 || error === null) {
-              resolve3();
+              resolve4();
             } else {
               reject(error);
             }
@@ -3081,8 +3081,8 @@ var require_main = __commonJS({
     exports2.createMessageConnection = exports2.createServerSocketTransport = exports2.createClientSocketTransport = exports2.createServerPipeTransport = exports2.createClientPipeTransport = exports2.generateRandomPipeName = exports2.StreamMessageWriter = exports2.StreamMessageReader = exports2.SocketMessageWriter = exports2.SocketMessageReader = exports2.PortMessageWriter = exports2.PortMessageReader = exports2.IPCMessageWriter = exports2.IPCMessageReader = void 0;
     var ril_1 = require_ril();
     ril_1.default.install();
-    var path6 = require("path");
-    var os3 = require("os");
+    var path7 = require("path");
+    var os = require("os");
     var crypto_1 = require("crypto");
     var net_1 = require("net");
     var api_1 = require_api();
@@ -3217,9 +3217,9 @@ var require_main = __commonJS({
       }
       let result;
       if (XDG_RUNTIME_DIR) {
-        result = path6.join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
+        result = path7.join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
       } else {
-        result = path6.join(os3.tmpdir(), `vscode-${randomSuffix}.sock`);
+        result = path7.join(os.tmpdir(), `vscode-${randomSuffix}.sock`);
       }
       const limit = safeIpcPathLengths.get(process.platform);
       if (limit !== void 0 && result.length > limit) {
@@ -3230,10 +3230,10 @@ var require_main = __commonJS({
     exports2.generateRandomPipeName = generateRandomPipeName;
     function createClientPipeTransport(pipeName, encoding = "utf-8") {
       let connectResolve;
-      const connected = new Promise((resolve3, _reject) => {
-        connectResolve = resolve3;
+      const connected = new Promise((resolve4, _reject) => {
+        connectResolve = resolve4;
       });
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve4, reject) => {
         let server = (0, net_1.createServer)((socket) => {
           server.close();
           connectResolve([
@@ -3244,7 +3244,7 @@ var require_main = __commonJS({
         server.on("error", reject);
         server.listen(pipeName, () => {
           server.removeListener("error", reject);
-          resolve3({
+          resolve4({
             onConnected: () => {
               return connected;
             }
@@ -3263,10 +3263,10 @@ var require_main = __commonJS({
     exports2.createServerPipeTransport = createServerPipeTransport;
     function createClientSocketTransport(port, encoding = "utf-8") {
       let connectResolve;
-      const connected = new Promise((resolve3, _reject) => {
-        connectResolve = resolve3;
+      const connected = new Promise((resolve4, _reject) => {
+        connectResolve = resolve4;
       });
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve4, reject) => {
         const server = (0, net_1.createServer)((socket) => {
           server.close();
           connectResolve([
@@ -3277,7 +3277,7 @@ var require_main = __commonJS({
         server.on("error", reject);
         server.listen(port, "127.0.0.1", () => {
           server.removeListener("error", reject);
-          resolve3({
+          resolve4({
             onConnected: () => {
               return connected;
             }
@@ -3475,7 +3475,7 @@ var require_main2 = __commonJS({
         ColorPresentation2.create = create;
         function is(value) {
           var candidate = value;
-          return Is.objectLiteral(candidate) && Is.string(candidate.label) && (Is.undefined(candidate.textEdit) || TextEdit2.is(candidate)) && (Is.undefined(candidate.additionalTextEdits) || Is.typedArray(candidate.additionalTextEdits, TextEdit2.is));
+          return Is.objectLiteral(candidate) && Is.string(candidate.label) && (Is.undefined(candidate.textEdit) || TextEdit.is(candidate)) && (Is.undefined(candidate.additionalTextEdits) || Is.typedArray(candidate.additionalTextEdits, TextEdit.is));
         }
         ColorPresentation2.is = is;
       })(ColorPresentation || (exports3.ColorPresentation = ColorPresentation = {}));
@@ -3594,26 +3594,26 @@ var require_main2 = __commonJS({
         }
         Command3.is = is;
       })(Command2 || (exports3.Command = Command2 = {}));
-      var TextEdit2;
-      (function(TextEdit3) {
+      var TextEdit;
+      (function(TextEdit2) {
         function replace(range, newText) {
           return { range, newText };
         }
-        TextEdit3.replace = replace;
+        TextEdit2.replace = replace;
         function insert(position, newText) {
           return { range: { start: position, end: position }, newText };
         }
-        TextEdit3.insert = insert;
+        TextEdit2.insert = insert;
         function del(range) {
           return { range, newText: "" };
         }
-        TextEdit3.del = del;
+        TextEdit2.del = del;
         function is(value) {
           var candidate = value;
           return Is.objectLiteral(candidate) && Is.string(candidate.newText) && Range2.is(candidate.range);
         }
-        TextEdit3.is = is;
-      })(TextEdit2 || (exports3.TextEdit = TextEdit2 = {}));
+        TextEdit2.is = is;
+      })(TextEdit || (exports3.TextEdit = TextEdit = {}));
       var ChangeAnnotation;
       (function(ChangeAnnotation2) {
         function create(label, needsConfirmation, description) {
@@ -3657,24 +3657,24 @@ var require_main2 = __commonJS({
         AnnotatedTextEdit2.del = del;
         function is(value) {
           var candidate = value;
-          return TextEdit2.is(candidate) && (ChangeAnnotation.is(candidate.annotationId) || ChangeAnnotationIdentifier.is(candidate.annotationId));
+          return TextEdit.is(candidate) && (ChangeAnnotation.is(candidate.annotationId) || ChangeAnnotationIdentifier.is(candidate.annotationId));
         }
         AnnotatedTextEdit2.is = is;
       })(AnnotatedTextEdit || (exports3.AnnotatedTextEdit = AnnotatedTextEdit = {}));
-      var TextDocumentEdit2;
-      (function(TextDocumentEdit3) {
+      var TextDocumentEdit;
+      (function(TextDocumentEdit2) {
         function create(textDocument, edits) {
           return { textDocument, edits };
         }
-        TextDocumentEdit3.create = create;
+        TextDocumentEdit2.create = create;
         function is(value) {
           var candidate = value;
-          return Is.defined(candidate) && OptionalVersionedTextDocumentIdentifier2.is(candidate.textDocument) && Array.isArray(candidate.edits);
+          return Is.defined(candidate) && OptionalVersionedTextDocumentIdentifier.is(candidate.textDocument) && Array.isArray(candidate.edits);
         }
-        TextDocumentEdit3.is = is;
-      })(TextDocumentEdit2 || (exports3.TextDocumentEdit = TextDocumentEdit2 = {}));
-      var CreateFile2;
-      (function(CreateFile3) {
+        TextDocumentEdit2.is = is;
+      })(TextDocumentEdit || (exports3.TextDocumentEdit = TextDocumentEdit = {}));
+      var CreateFile;
+      (function(CreateFile2) {
         function create(uri, options, annotation) {
           var result = {
             kind: "create",
@@ -3688,13 +3688,13 @@ var require_main2 = __commonJS({
           }
           return result;
         }
-        CreateFile3.create = create;
+        CreateFile2.create = create;
         function is(value) {
           var candidate = value;
           return candidate && candidate.kind === "create" && Is.string(candidate.uri) && (candidate.options === void 0 || (candidate.options.overwrite === void 0 || Is.boolean(candidate.options.overwrite)) && (candidate.options.ignoreIfExists === void 0 || Is.boolean(candidate.options.ignoreIfExists))) && (candidate.annotationId === void 0 || ChangeAnnotationIdentifier.is(candidate.annotationId));
         }
-        CreateFile3.is = is;
-      })(CreateFile2 || (exports3.CreateFile = CreateFile2 = {}));
+        CreateFile2.is = is;
+      })(CreateFile || (exports3.CreateFile = CreateFile = {}));
       var RenameFile;
       (function(RenameFile2) {
         function create(oldUri, newUri, options, annotation) {
@@ -3746,9 +3746,9 @@ var require_main2 = __commonJS({
           var candidate = value;
           return candidate && (candidate.changes !== void 0 || candidate.documentChanges !== void 0) && (candidate.documentChanges === void 0 || candidate.documentChanges.every(function(change) {
             if (Is.string(change.kind)) {
-              return CreateFile2.is(change) || RenameFile.is(change) || DeleteFile.is(change);
+              return CreateFile.is(change) || RenameFile.is(change) || DeleteFile.is(change);
             } else {
-              return TextDocumentEdit2.is(change);
+              return TextDocumentEdit.is(change);
             }
           }));
         }
@@ -3765,7 +3765,7 @@ var require_main2 = __commonJS({
             var edit;
             var id;
             if (annotation === void 0) {
-              edit = TextEdit2.insert(position, newText);
+              edit = TextEdit.insert(position, newText);
             } else if (ChangeAnnotationIdentifier.is(annotation)) {
               id = annotation;
               edit = AnnotatedTextEdit.insert(position, newText, annotation);
@@ -3783,7 +3783,7 @@ var require_main2 = __commonJS({
             var edit;
             var id;
             if (annotation === void 0) {
-              edit = TextEdit2.replace(range, newText);
+              edit = TextEdit.replace(range, newText);
             } else if (ChangeAnnotationIdentifier.is(annotation)) {
               id = annotation;
               edit = AnnotatedTextEdit.replace(range, newText, annotation);
@@ -3801,7 +3801,7 @@ var require_main2 = __commonJS({
             var edit;
             var id;
             if (annotation === void 0) {
-              edit = TextEdit2.del(range);
+              edit = TextEdit.del(range);
             } else if (ChangeAnnotationIdentifier.is(annotation)) {
               id = annotation;
               edit = AnnotatedTextEdit.del(range, annotation);
@@ -3887,7 +3887,7 @@ var require_main2 = __commonJS({
                 this._changeAnnotations = new ChangeAnnotations(workspaceEdit.changeAnnotations);
                 workspaceEdit.changeAnnotations = this._changeAnnotations.all();
                 workspaceEdit.documentChanges.forEach(function(change) {
-                  if (TextDocumentEdit2.is(change)) {
+                  if (TextDocumentEdit.is(change)) {
                     var textEditChange = new TextEditChangeImpl(change.edits, _this._changeAnnotations);
                     _this._textEditChanges[change.textDocument.uri] = textEditChange;
                   }
@@ -3922,7 +3922,7 @@ var require_main2 = __commonJS({
             configurable: true
           });
           WorkspaceChange2.prototype.getTextEditChange = function(key) {
-            if (OptionalVersionedTextDocumentIdentifier2.is(key)) {
+            if (OptionalVersionedTextDocumentIdentifier.is(key)) {
               this.initDocumentChanges();
               if (this._workspaceEdit.documentChanges === void 0) {
                 throw new Error("Workspace edit is not configured for document changes.");
@@ -3981,10 +3981,10 @@ var require_main2 = __commonJS({
             var operation;
             var id;
             if (annotation === void 0) {
-              operation = CreateFile2.create(uri, options);
+              operation = CreateFile.create(uri, options);
             } else {
               id = ChangeAnnotationIdentifier.is(annotation) ? annotation : this._changeAnnotations.manage(annotation);
-              operation = CreateFile2.create(uri, options, id);
+              operation = CreateFile.create(uri, options, id);
             }
             this._workspaceEdit.documentChanges.push(operation);
             if (id !== void 0) {
@@ -4067,18 +4067,18 @@ var require_main2 = __commonJS({
         }
         VersionedTextDocumentIdentifier2.is = is;
       })(VersionedTextDocumentIdentifier || (exports3.VersionedTextDocumentIdentifier = VersionedTextDocumentIdentifier = {}));
-      var OptionalVersionedTextDocumentIdentifier2;
-      (function(OptionalVersionedTextDocumentIdentifier3) {
+      var OptionalVersionedTextDocumentIdentifier;
+      (function(OptionalVersionedTextDocumentIdentifier2) {
         function create(uri, version) {
           return { uri, version };
         }
-        OptionalVersionedTextDocumentIdentifier3.create = create;
+        OptionalVersionedTextDocumentIdentifier2.create = create;
         function is(value) {
           var candidate = value;
           return Is.defined(candidate) && Is.string(candidate.uri) && (candidate.version === null || Is.integer(candidate.version));
         }
-        OptionalVersionedTextDocumentIdentifier3.is = is;
-      })(OptionalVersionedTextDocumentIdentifier2 || (exports3.OptionalVersionedTextDocumentIdentifier = OptionalVersionedTextDocumentIdentifier2 = {}));
+        OptionalVersionedTextDocumentIdentifier2.is = is;
+      })(OptionalVersionedTextDocumentIdentifier || (exports3.OptionalVersionedTextDocumentIdentifier = OptionalVersionedTextDocumentIdentifier = {}));
       var TextDocumentItem;
       (function(TextDocumentItem2) {
         function create(uri, languageId, version, text) {
@@ -4567,7 +4567,7 @@ var require_main2 = __commonJS({
         InlayHint2.create = create;
         function is(value) {
           var candidate = value;
-          return Is.objectLiteral(candidate) && Position2.is(candidate.position) && (Is.string(candidate.label) || Is.typedArray(candidate.label, InlayHintLabelPart.is)) && (candidate.kind === void 0 || InlayHintKind.is(candidate.kind)) && candidate.textEdits === void 0 || Is.typedArray(candidate.textEdits, TextEdit2.is) && (candidate.tooltip === void 0 || Is.string(candidate.tooltip) || MarkupContent.is(candidate.tooltip)) && (candidate.paddingLeft === void 0 || Is.boolean(candidate.paddingLeft)) && (candidate.paddingRight === void 0 || Is.boolean(candidate.paddingRight));
+          return Is.objectLiteral(candidate) && Position2.is(candidate.position) && (Is.string(candidate.label) || Is.typedArray(candidate.label, InlayHintLabelPart.is)) && (candidate.kind === void 0 || InlayHintKind.is(candidate.kind)) && candidate.textEdits === void 0 || Is.typedArray(candidate.textEdits, TextEdit.is) && (candidate.tooltip === void 0 || Is.string(candidate.tooltip) || MarkupContent.is(candidate.tooltip)) && (candidate.paddingLeft === void 0 || Is.boolean(candidate.paddingLeft)) && (candidate.paddingRight === void 0 || Is.boolean(candidate.paddingRight));
         }
         InlayHint2.is = is;
       })(InlayHint || (exports3.InlayHint = InlayHint = {}));
@@ -7438,9 +7438,9 @@ var require_notebook = __commonJS({
               const array = changedCells.structure.array;
               notebookDocument.cells.splice(array.start, array.deleteCount, ...array.cells !== void 0 ? array.cells : []);
               if (changedCells.structure.didOpen !== void 0) {
-                for (const open of changedCells.structure.didOpen) {
-                  cellTextDocumentConnection.openTextDocument({ textDocument: open });
-                  opened.push(open.uri);
+                for (const open4 of changedCells.structure.didOpen) {
+                  cellTextDocumentConnection.openTextDocument({ textDocument: open4 });
+                  opened.push(open4.uri);
                 }
               }
               if (changedCells.structure.didClose) {
@@ -7477,8 +7477,8 @@ var require_notebook = __commonJS({
             changeEvent.metadata = { old: oldMetadata, new: notebookDocument.metadata };
           }
           const added = [];
-          for (const open of opened) {
-            added.push(this.getNotebookCell(open));
+          for (const open4 of opened) {
+            added.push(this.getNotebookCell(open4));
           }
           const removed = [];
           for (const close of closed) {
@@ -8063,8 +8063,8 @@ var require_server = __commonJS({
         if (value instanceof Promise) {
           return value;
         } else if (Is.thenable(value)) {
-          return new Promise((resolve3, reject) => {
-            value.then((resolved) => resolve3(resolved), (error) => reject(error));
+          return new Promise((resolve4, reject) => {
+            value.then((resolved) => resolve4(resolved), (error) => reject(error));
           });
         } else {
           return Promise.resolve(value);
@@ -8309,8 +8309,8 @@ var require_files = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.resolveModulePath = exports2.FileSystem = exports2.resolveGlobalYarnPath = exports2.resolveGlobalNodePath = exports2.resolve = exports2.uriToFilePath = void 0;
     var url = require("url");
-    var path6 = require("path");
-    var fs5 = require("fs");
+    var path7 = require("path");
+    var fs6 = require("fs");
     var child_process_1 = require("child_process");
     function uriToFilePath2(uri) {
       let parsed = url.parse(uri);
@@ -8328,13 +8328,13 @@ var require_files = __commonJS({
           segments.shift();
         }
       }
-      return path6.normalize(segments.join("/"));
+      return path7.normalize(segments.join("/"));
     }
     exports2.uriToFilePath = uriToFilePath2;
     function isWindows() {
       return process.platform === "win32";
     }
-    function resolve3(moduleName, nodePath, cwd, tracer) {
+    function resolve4(moduleName, nodePath, cwd, tracer) {
       const nodePathKey = "NODE_PATH";
       const app = [
         "var p = process;",
@@ -8353,13 +8353,13 @@ var require_files = __commonJS({
         "}",
         "});"
       ].join("");
-      return new Promise((resolve4, reject) => {
+      return new Promise((resolve5, reject) => {
         let env = process.env;
         let newEnv = /* @__PURE__ */ Object.create(null);
         Object.keys(env).forEach((key) => newEnv[key] = env[key]);
-        if (nodePath && fs5.existsSync(nodePath)) {
+        if (nodePath && fs6.existsSync(nodePath)) {
           if (newEnv[nodePathKey]) {
-            newEnv[nodePathKey] = nodePath + path6.delimiter + newEnv[nodePathKey];
+            newEnv[nodePathKey] = nodePath + path7.delimiter + newEnv[nodePathKey];
           } else {
             newEnv[nodePathKey] = nodePath;
           }
@@ -8385,7 +8385,7 @@ var require_files = __commonJS({
             if (message2.c === "r") {
               cp.send({ c: "e" });
               if (message2.s) {
-                resolve4(message2.r);
+                resolve5(message2.r);
               } else {
                 reject(new Error(`Failed to resolve module: ${moduleName}`));
               }
@@ -8401,7 +8401,7 @@ var require_files = __commonJS({
         }
       });
     }
-    exports2.resolve = resolve3;
+    exports2.resolve = resolve4;
     function resolveGlobalNodePath(tracer) {
       let npmCommand = "npm";
       const env = /* @__PURE__ */ Object.create(null);
@@ -8432,9 +8432,9 @@ var require_files = __commonJS({
         }
         if (prefix.length > 0) {
           if (isWindows()) {
-            return path6.join(prefix, "node_modules");
+            return path7.join(prefix, "node_modules");
           } else {
-            return path6.join(prefix, "lib", "node_modules");
+            return path7.join(prefix, "lib", "node_modules");
           }
         }
         return void 0;
@@ -8474,7 +8474,7 @@ var require_files = __commonJS({
           try {
             let yarn = JSON.parse(line);
             if (yarn.type === "log") {
-              return path6.join(yarn.data, "node_modules");
+              return path7.join(yarn.data, "node_modules");
             }
           } catch (e) {
           }
@@ -8497,36 +8497,36 @@ var require_files = __commonJS({
         if (process.platform === "win32") {
           _isCaseSensitive = false;
         } else {
-          _isCaseSensitive = !fs5.existsSync(__filename.toUpperCase()) || !fs5.existsSync(__filename.toLowerCase());
+          _isCaseSensitive = !fs6.existsSync(__filename.toUpperCase()) || !fs6.existsSync(__filename.toLowerCase());
         }
         return _isCaseSensitive;
       }
       FileSystem2.isCaseSensitive = isCaseSensitive;
       function isParent(parent, child) {
         if (isCaseSensitive()) {
-          return path6.normalize(child).indexOf(path6.normalize(parent)) === 0;
+          return path7.normalize(child).indexOf(path7.normalize(parent)) === 0;
         } else {
-          return path6.normalize(child).toLowerCase().indexOf(path6.normalize(parent).toLowerCase()) === 0;
+          return path7.normalize(child).toLowerCase().indexOf(path7.normalize(parent).toLowerCase()) === 0;
         }
       }
       FileSystem2.isParent = isParent;
     })(FileSystem || (exports2.FileSystem = FileSystem = {}));
     function resolveModulePath(workspaceRoot, moduleName, nodePath, tracer) {
       if (nodePath) {
-        if (!path6.isAbsolute(nodePath)) {
-          nodePath = path6.join(workspaceRoot, nodePath);
+        if (!path7.isAbsolute(nodePath)) {
+          nodePath = path7.join(workspaceRoot, nodePath);
         }
-        return resolve3(moduleName, nodePath, nodePath, tracer).then((value) => {
+        return resolve4(moduleName, nodePath, nodePath, tracer).then((value) => {
           if (FileSystem.isParent(nodePath, value)) {
             return value;
           } else {
             return Promise.reject(new Error(`Failed to load ${moduleName} from node path location.`));
           }
         }).then(void 0, (_error) => {
-          return resolve3(moduleName, resolveGlobalNodePath(tracer), workspaceRoot, tracer);
+          return resolve4(moduleName, resolveGlobalNodePath(tracer), workspaceRoot, tracer);
         });
       } else {
-        return resolve3(moduleName, resolveGlobalNodePath(tracer), workspaceRoot, tracer);
+        return resolve4(moduleName, resolveGlobalNodePath(tracer), workspaceRoot, tracer);
       }
     }
     exports2.resolveModulePath = resolveModulePath;
@@ -8952,17 +8952,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path6) {
-      const ctrl = callVisitor(key, node, visitor, path6);
+    function visit_(key, node, visitor, path7) {
+      const ctrl = callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visit_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visit_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path6);
+            const ci = visit_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -8973,13 +8973,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = visit_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = visit_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path6);
+          const cv = visit_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -9000,17 +9000,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path6) {
-      const ctrl = await callVisitor(key, node, visitor, path6);
+    async function visitAsync_(key, node, visitor, path7) {
+      const ctrl = await callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visitAsync_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visitAsync_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path6);
+            const ci = await visitAsync_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -9021,13 +9021,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path6);
+          const cv = await visitAsync_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -9054,23 +9054,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path6) {
+    function callVisitor(key, node, visitor, path7) {
       if (typeof visitor === "function")
-        return visitor(key, node, path6);
+        return visitor(key, node, path7);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path6);
+        return visitor.Map?.(key, node, path7);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path6);
+        return visitor.Seq?.(key, node, path7);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path6);
+        return visitor.Pair?.(key, node, path7);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path6);
+        return visitor.Scalar?.(key, node, path7);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path6);
+        return visitor.Alias?.(key, node, path7);
       return void 0;
     }
-    function replaceNode(key, path6, node) {
-      const parent = path6[path6.length - 1];
+    function replaceNode(key, path7, node) {
+      const parent = path7[path7.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -9682,10 +9682,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path6, value) {
+    function collectionFromPath(schema, path7, value) {
       let v = value;
-      for (let i = path6.length - 1; i >= 0; --i) {
-        const k = path6[i];
+      for (let i = path7.length - 1; i >= 0; --i) {
+        const k = path7[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -9704,7 +9704,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path6) => path6 == null || typeof path6 === "object" && !!path6[Symbol.iterator]().next().done;
+    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -9734,11 +9734,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path6, value) {
-        if (isEmptyPath(path6))
+      addIn(path7, value) {
+        if (isEmptyPath(path7))
           this.add(value);
         else {
-          const [key, ...rest] = path6;
+          const [key, ...rest] = path7;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -9752,8 +9752,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        const [key, ...rest] = path6;
+      deleteIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -9767,8 +9767,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        const [key, ...rest] = path6;
+      getIn(path7, keepScalar) {
+        const [key, ...rest] = path7;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -9786,8 +9786,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path6) {
-        const [key, ...rest] = path6;
+      hasIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -9797,8 +9797,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        const [key, ...rest] = path6;
+      setIn(path7, value) {
+        const [key, ...rest] = path7;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -12313,9 +12313,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path6, value) {
+      addIn(path7, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path6, value);
+          this.contents.addIn(path7, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -12390,14 +12390,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        if (Collection.isEmptyPath(path6)) {
+      deleteIn(path7) {
+        if (Collection.isEmptyPath(path7)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path6) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -12412,10 +12412,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        if (Collection.isEmptyPath(path6))
+      getIn(path7, keepScalar) {
+        if (Collection.isEmptyPath(path7))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path6, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -12426,10 +12426,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path6) {
-        if (Collection.isEmptyPath(path6))
+      hasIn(path7) {
+        if (Collection.isEmptyPath(path7))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path6) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -12446,13 +12446,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        if (Collection.isEmptyPath(path6)) {
+      setIn(path7, value) {
+        if (Collection.isEmptyPath(path7)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path6), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path7), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path6, value);
+          this.contents.setIn(path7, value);
         }
       }
       /**
@@ -14413,9 +14413,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path6) => {
+    visit.itemAtPath = (cst, path7) => {
       let item = cst;
-      for (const [field, index] of path6) {
+      for (const [field, index] of path7) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -14424,23 +14424,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path6) => {
-      const parent = visit.itemAtPath(cst, path6.slice(0, -1));
-      const field = path6[path6.length - 1][0];
+    visit.parentCollection = (cst, path7) => {
+      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
+      const field = path7[path7.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path6, item, visitor) {
-      let ctrl = visitor(item, path6);
+    function _visit(path7, item, visitor) {
+      let ctrl = visitor(item, path7);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path6.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -14451,10 +14451,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path6);
+            ctrl = ctrl(item, path7);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path6) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
     }
     exports2.visit = visit;
   }
@@ -15756,14 +15756,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs5 = this.flowScalar(this.type);
+              const fs6 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs5, sep: [] });
+                map.items.push({ start, key: fs6, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs5);
+                this.stack.push(fs6);
               } else {
-                Object.assign(it, { key: fs5, sep: [] });
+                Object.assign(it, { key: fs6, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -15891,13 +15891,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs5 = this.flowScalar(this.type);
+              const fs6 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs5, sep: [] });
+                fc.items.push({ start: [], key: fs6, sep: [] });
               else if (it.sep)
-                this.stack.push(fs5);
+                this.stack.push(fs6);
               else
-                Object.assign(it, { key: fs5, sep: [] });
+                Object.assign(it, { key: fs6, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -16433,20 +16433,22 @@ function getWellformedEdit(textEdit) {
 }
 
 // src/index.ts
-var fs4 = __toESM(require("fs/promises"));
-var path5 = __toESM(require("path"));
-var import_url2 = require("url");
+var fs5 = __toESM(require("fs/promises"));
+var path6 = __toESM(require("path"));
+var import_crypto3 = require("crypto");
+var import_url3 = require("url");
 
 // src/edit-session.ts
 var fs = __toESM(require("fs/promises"));
-var os = __toESM(require("os"));
 var path2 = __toESM(require("path"));
 var import_url = require("url");
+var import_crypto = require("crypto");
 
 // src/sops-detector.ts
 var path = __toESM(require("path"));
 var LEGACY_PREFIX = ".decrypted~";
-var NEW_SIDECAR_RE = /^(.*)\.decrypted(\.[^.]+)$/;
+var DOT_PREFIX = ".decrypted.";
+var INFIX_SIDECAR_RE = /^(.*)\.decrypted(\.[^.]+)$/;
 function isSopsEncrypted(content, fileType) {
   try {
     if (fileType === "json") {
@@ -16469,36 +16471,13 @@ function isSopsEncrypted(content, fileType) {
 }
 function isDecryptedFile(filePath) {
   const name = path.basename(filePath);
-  return name.startsWith(LEGACY_PREFIX) || NEW_SIDECAR_RE.test(name);
+  return name.startsWith(LEGACY_PREFIX) || name.startsWith(DOT_PREFIX) || INFIX_SIDECAR_RE.test(name);
 }
 function getDecryptedPath(encryptedFilePath) {
-  const dir = path.dirname(encryptedFilePath);
-  const parsed = path.parse(encryptedFilePath);
-  if (parsed.ext !== "") {
-    return path.join(dir, `${parsed.name}.decrypted${parsed.ext}`);
-  }
-  return path.join(dir, `${parsed.base}.decrypted`);
-}
-function getLegacyDecryptedPath(encryptedFilePath) {
   return path.join(
     path.dirname(encryptedFilePath),
-    `${LEGACY_PREFIX}${path.basename(encryptedFilePath)}`
+    `${DOT_PREFIX}${path.basename(encryptedFilePath)}`
   );
-}
-function getEncryptedPath(decryptedFilePath) {
-  const dir = path.dirname(decryptedFilePath);
-  const name = path.basename(decryptedFilePath);
-  if (name.startsWith(LEGACY_PREFIX)) {
-    return path.join(dir, name.slice(LEGACY_PREFIX.length));
-  }
-  const match = name.match(NEW_SIDECAR_RE);
-  if (match) {
-    return path.join(dir, `${match[1]}${match[2]}`);
-  }
-  return decryptedFilePath;
-}
-function possibleSidecarPaths(encryptedFilePath) {
-  return [getDecryptedPath(encryptedFilePath), getLegacyDecryptedPath(encryptedFilePath)];
 }
 function detectFileType(filePath) {
   const lower = filePath.toLowerCase();
@@ -16514,6 +16493,9 @@ var DEFAULT_SOPS_SETTINGS = {
   sopsPath: "sops",
   env: {},
   autoEdit: true,
+  autoEditAll: false,
+  keyFile: "",
+  stateDir: "",
   timeoutMs: 6e4
 };
 function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
@@ -16522,11 +16504,22 @@ function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
     Object.entries(obj.env).filter(
       (entry) => typeof entry[1] === "string"
     )
-  ) : defaults.env;
+  ) : { ...defaults.env };
+  const keyFile = typeof obj.keyFile === "string" ? obj.keyFile : defaults.keyFile;
+  if (obj.env === void 0 && env.SOPS_AGE_SSH_PRIVATE_KEY_FILE === defaults.keyFile) {
+    delete env.SOPS_AGE_SSH_PRIVATE_KEY_FILE;
+  }
+  const mergedEnv = { ...env };
+  if (keyFile.length > 0 && typeof mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE !== "string") {
+    mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE = keyFile;
+  }
   return {
     sopsPath: typeof obj.sopsPath === "string" && obj.sopsPath.length > 0 ? obj.sopsPath : defaults.sopsPath,
-    env,
+    env: mergedEnv,
     autoEdit: typeof obj.autoEdit === "boolean" ? obj.autoEdit : defaults.autoEdit,
+    autoEditAll: typeof obj.autoEditAll === "boolean" ? obj.autoEditAll : defaults.autoEditAll,
+    keyFile,
+    stateDir: typeof obj.stateDir === "string" ? obj.stateDir : defaults.stateDir,
     timeoutMs: typeof obj.timeoutMs === "number" && Number.isFinite(obj.timeoutMs) && obj.timeoutMs > 0 ? obj.timeoutMs : defaults.timeoutMs
   };
 }
@@ -16534,6 +16527,9 @@ function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
 // src/edit-session.ts
 function filePathToUri(filePath) {
   return (0, import_url.pathToFileURL)(filePath).toString();
+}
+function sha256(value) {
+  return (0, import_crypto.createHash)("sha256").update(value).digest("hex");
 }
 async function exists(filePath) {
   try {
@@ -16543,13 +16539,10 @@ async function exists(filePath) {
     return false;
   }
 }
-async function writeSidecar(filePath, content) {
-  await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 384 });
-  await fs.chmod(filePath, 384);
-}
 var EditSessionRegistry = class {
-  constructor(runner) {
+  constructor(runner, sidecars2) {
     this.runner = runner;
+    this.sidecars = sidecars2;
     this.byEncrypted = /* @__PURE__ */ new Map();
     this.byDecryptedUri = /* @__PURE__ */ new Map();
     this.byDecryptedPath = /* @__PURE__ */ new Map();
@@ -16562,6 +16555,18 @@ var EditSessionRegistry = class {
   }
   getByEncryptedPath(filePath) {
     return this.byEncrypted.get(path2.resolve(filePath));
+  }
+  lookupDecrypted(uri) {
+    const direct = this.byDecryptedUri.get(uri);
+    if (direct) return direct;
+    try {
+      return this.byDecryptedPath.get(path2.resolve((0, import_url.fileURLToPath)(uri)));
+    } catch {
+      return void 0;
+    }
+  }
+  list() {
+    return [...this.byEncrypted.values()];
   }
   index(session) {
     this.byEncrypted.set(path2.resolve(session.encryptedFilePath), session);
@@ -16579,25 +16584,17 @@ var EditSessionRegistry = class {
     const resolved = path2.resolve(encryptedFilePath);
     const existing = this.byEncrypted.get(resolved);
     if (existing) {
-      let plaintext2 = "";
-      try {
-        plaintext2 = await fs.readFile(existing.decryptedFilePath, "utf-8");
-      } catch {
-        plaintext2 = "";
+      if (await exists(existing.decryptedFilePath)) {
+        const plaintext2 = await fs.readFile(existing.decryptedFilePath, "utf-8");
+        return { session: existing, plaintext: plaintext2 };
       }
-      return { session: existing, plaintext: plaintext2 };
-    }
-    const decryptedFilePath = getDecryptedPath(resolved);
-    if (await exists(decryptedFilePath)) {
-      const companion = await fs.readFile(resolved, "utf-8").catch(() => "");
-      if (!isSopsEncrypted(companion, fileType)) {
-        throw new Error(
-          `SOPS: ${decryptedFilePath} already exists and is not a SOPS sidecar.`
-        );
-      }
+      await this.sidecars.release(existing.lease, false).catch(() => {
+      });
+      this.unindex(existing);
     }
     const plaintext = await this.runner.decrypt(resolved, fileType);
-    await writeSidecar(decryptedFilePath, plaintext);
+    const decryptedFilePath = getDecryptedPath(resolved);
+    const lease = await this.sidecars.acquire({ encryptedPath: resolved, sidecarPath: decryptedFilePath, plaintext, encryptedSha256: sha256(encryptedContent), plaintextSha256: sha256(plaintext) });
     const session = {
       state: "decrypted" /* DECRYPTED */,
       encryptedFilePath: resolved,
@@ -16605,16 +16602,18 @@ var EditSessionRegistry = class {
       decryptedFilePath,
       decryptedUri: filePathToUri(decryptedFilePath),
       fileType,
-      pending: void 0
+      pending: void 0,
+      plaintextSnapshot: plaintext,
+      lease
     };
     this.index(session);
     return { session, plaintext };
   }
-  async adopt(decryptedFilePath, encryptedFilePath, encryptedContent, fileType) {
-    const resolvedEnc = path2.resolve(encryptedFilePath);
+  async adopt(lease, encryptedContent, fileType) {
+    const resolvedEnc = path2.resolve(lease.record.encryptedPath);
     const existing = this.byEncrypted.get(resolvedEnc);
     if (existing) return existing;
-    const resolvedDec = path2.resolve(decryptedFilePath);
+    const resolvedDec = path2.resolve(lease.record.sidecarPath);
     const session = {
       state: "decrypted" /* DECRYPTED */,
       encryptedFilePath: resolvedEnc,
@@ -16622,13 +16621,15 @@ var EditSessionRegistry = class {
       decryptedFilePath: resolvedDec,
       decryptedUri: filePathToUri(resolvedDec),
       fileType,
-      pending: void 0
+      pending: void 0,
+      plaintextSnapshot: "",
+      lease
     };
     this.index(session);
     return session;
   }
   async save(decryptedUri, plaintext) {
-    const session = this.byDecryptedUri.get(decryptedUri);
+    const session = this.lookupDecrypted(decryptedUri);
     if (!session) return;
     if (session.state === "encrypting" /* ENCRYPTING */) {
       session.pending = plaintext;
@@ -16652,47 +16653,9 @@ var EditSessionRegistry = class {
           `SOPS: ${session.encryptedFilePath} changed on disk; not re-encrypting.`
         );
       }
-      const backupPath = path2.join(
-        os.tmpdir(),
-        `sops-backup-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      );
-      try {
-        await fs.writeFile(backupPath, session.encryptedContent, {
-          encoding: "utf-8",
-          mode: 384
-        });
-        await fs.chmod(backupPath, 384);
-      } catch (error) {
-        await fs.unlink(backupPath).catch(() => {
-        });
-        throw error;
-      }
-      try {
-        await this.runner.reEncrypt(
-          session.encryptedFilePath,
-          current,
-          session.fileType
-        );
-      } catch (error) {
-        try {
-          await fs.copyFile(backupPath, session.encryptedFilePath);
-        } catch (restoreError) {
-          const original = error instanceof Error ? error.message : String(error);
-          const restore = restoreError instanceof Error ? restoreError.message : String(restoreError);
-          throw new Error(
-            `SOPS: re-encrypt failed (${original}); restore failed (${restore}). Ciphertext backup remains at ${backupPath}`
-          );
-        }
-        await fs.unlink(backupPath).catch(() => {
-        });
-        throw error;
-      }
-      await fs.unlink(backupPath).catch(() => {
-      });
-      session.encryptedContent = await fs.readFile(
-        session.encryptedFilePath,
-        "utf-8"
-      );
+      session.encryptedContent = await this.runner.reEncryptStaged(session.encryptedFilePath, session.encryptedContent, current, session.fileType);
+      session.plaintextSnapshot = current;
+      await this.sidecars.updateHashes(session.lease, sha256(session.encryptedContent), sha256(current));
       if (session.pending !== void 0) {
         current = session.pending;
         session.pending = void 0;
@@ -16703,20 +16666,19 @@ var EditSessionRegistry = class {
     }
   }
   async close(decryptedUri) {
-    const session = this.byDecryptedUri.get(decryptedUri);
-    if (!session) return;
-    await fs.unlink(session.decryptedFilePath).catch(() => {
-    });
-    this.unindex(session);
-  }
-  async deleteOrphanSidecars(encryptedFilePath, isOpen) {
-    for (const sidecar of possibleSidecarPaths(encryptedFilePath)) {
-      if (!await exists(sidecar)) continue;
-      if (isOpen(sidecar)) continue;
-      if (this.byDecryptedPath.has(path2.resolve(sidecar))) continue;
-      await fs.unlink(sidecar).catch(() => {
-      });
+    let session = this.byDecryptedUri.get(decryptedUri);
+    if (!session) {
+      try {
+        session = this.byDecryptedPath.get(
+          path2.resolve((0, import_url.fileURLToPath)(decryptedUri))
+        );
+      } catch {
+        session = void 0;
+      }
     }
+    if (!session) return;
+    await this.sidecars.release(session.lease, true);
+    this.unindex(session);
   }
 };
 
@@ -16787,6 +16749,7 @@ function containsGitSegment(absolutePath) {
 async function isAutoEditAllowed(absolutePath, settings2, workspaceFolders2, warn) {
   if (!settings2.autoEdit) return false;
   if (containsGitSegment(absolutePath)) return false;
+  if (settings2.autoEditAll) return true;
   const configPath = findSopsConfigPath(absolutePath, workspaceFolders2);
   if (!configPath) return false;
   let parsed;
@@ -16807,7 +16770,6 @@ var import_child_process = require("child_process");
 var import_util = require("util");
 var fs3 = __toESM(require("fs/promises"));
 var path4 = __toESM(require("path"));
-var os2 = __toESM(require("os"));
 var execFileAsync = (0, import_util.promisify)(import_child_process.execFile);
 var MAX_BUFFER = 10 * 1024 * 1024;
 var ERROR_CAP = 800;
@@ -16824,8 +16786,11 @@ var SopsRunner = class {
   constructor(settings2) {
     this.settings = settings2;
   }
-  updateSettings(partial) {
-    this.settings = { ...this.settings, ...partial };
+  updateSettings(next) {
+    const changed = this.settings.sopsPath !== next.sopsPath || JSON.stringify(this.settings.env) !== JSON.stringify(next.env) || this.settings.timeoutMs !== next.timeoutMs;
+    this.settings = next;
+    if (changed) this.verifyStatus = void 0;
+    return changed;
   }
   getVerifyStatus() {
     return this.verifyStatus;
@@ -16842,8 +16807,8 @@ var SopsRunner = class {
         maxBuffer: MAX_BUFFER
       });
       this.verifyStatus = "ok";
-    } catch {
-      this.verifyStatus = "missing";
+    } catch (error) {
+      this.verifyStatus = error.code === "ENOENT" ? "missing" : "error";
     }
     return this.verifyStatus;
   }
@@ -16859,12 +16824,16 @@ var SopsRunner = class {
     );
     return stdout;
   }
-  async reEncrypt(filePath, plaintext, _fileType) {
-    const tmpDir = os2.tmpdir();
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const tmpContentFile = path4.join(tmpDir, `sops-content-${id}`);
-    const tmpEditorScript = path4.join(tmpDir, `sops-editor-${id}.sh`);
+  async reEncryptStaged(filePath, expectedCiphertext, plaintext, fileType) {
+    const originalStat = await fs3.stat(filePath);
+    const stageDir = await fs3.mkdtemp(path4.join(path4.dirname(filePath), ".zed-sops-stage-"));
+    await fs3.chmod(stageDir, 448);
+    const staged = path4.join(stageDir, path4.basename(filePath));
+    const tmpContentFile = path4.join(stageDir, "plaintext");
+    const tmpEditorScript = path4.join(stageDir, "editor.sh");
     try {
+      await fs3.writeFile(staged, expectedCiphertext, { encoding: "utf8", mode: originalStat.mode & 511 });
+      await fs3.chmod(staged, originalStat.mode & 511);
       await fs3.writeFile(tmpContentFile, plaintext, {
         encoding: "utf-8",
         mode: 384
@@ -16875,10 +16844,10 @@ cp "$SOPS_ZED_CONTENT" "$1"
 `;
       await fs3.writeFile(tmpEditorScript, editorScript, {
         encoding: "utf-8",
-        mode: 493
+        mode: 448
       });
-      await fs3.chmod(tmpEditorScript, 493);
-      await execFileAsync(this.settings.sopsPath, [filePath], {
+      await fs3.chmod(tmpEditorScript, 448);
+      await execFileAsync(this.settings.sopsPath, ["--input-type", fileType, "--output-type", fileType, staged], {
         env: {
           ...this.env(),
           EDITOR: tmpEditorScript,
@@ -16887,12 +16856,199 @@ cp "$SOPS_ZED_CONTENT" "$1"
         maxBuffer: MAX_BUFFER,
         timeout: this.settings.timeoutMs
       });
+      await this.decrypt(staged, fileType);
+      const current = await fs3.readFile(filePath, "utf8");
+      if (current !== expectedCiphertext) throw new Error(`SOPS: ${filePath} changed on disk; not publishing staged ciphertext.`);
+      const committed = await fs3.readFile(staged, "utf8");
+      await fs3.chmod(staged, originalStat.mode & 511);
+      const handle = await fs3.open(staged, "r");
+      await handle.sync();
+      await handle.close();
+      await fs3.rename(staged, filePath);
+      const dirHandle = await fs3.open(path4.dirname(filePath), "r");
+      await dirHandle.sync();
+      await dirHandle.close();
+      return committed;
     } finally {
-      await fs3.unlink(tmpContentFile).catch(() => {
-      });
-      await fs3.unlink(tmpEditorScript).catch(() => {
+      await fs3.rm(stageDir, { recursive: true, force: true }).catch(() => {
       });
     }
+  }
+};
+
+// src/zed-client.ts
+var import_url2 = require("url");
+function supportsShowDocument(capabilities) {
+  return capabilities.window?.showDocument?.support === true;
+}
+function displayPath(uri) {
+  try {
+    return (0, import_url2.fileURLToPath)(uri);
+  } catch {
+    return uri;
+  }
+}
+var ZedClient = class {
+  constructor(connection2, canShowDocument) {
+    this.connection = connection2;
+    this.canShowDocument = canShowDocument;
+  }
+  async openDocument(uri) {
+    if (this.canShowDocument) {
+      try {
+        const result = await this.connection.window.showDocument({
+          uri,
+          external: false,
+          takeFocus: true
+        });
+        if (result.success) return "opened";
+        this.connection.console.warn(`SOPS: Zed declined to open ${uri}`);
+      } catch (error) {
+        this.connection.console.warn(
+          `SOPS: window/showDocument failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    const filePath = displayPath(uri);
+    this.connection.window.showInformationMessage(
+      `SOPS: decrypted file is ready at ${filePath}. Open it manually; this Zed build does not support window/showDocument.`
+    );
+    return "manual";
+  }
+};
+
+// src/sidecar-store.ts
+var fs4 = __toESM(require("fs/promises"));
+var path5 = __toESM(require("path"));
+var import_crypto2 = require("crypto");
+var sha = (value) => (0, import_crypto2.createHash)("sha256").update(value).digest("hex");
+var errno = (e) => e.code;
+var SidecarStore = class {
+  constructor(stateDir, owner) {
+    this.stateDir = stateDir;
+    this.owner = owner;
+  }
+  get sessionsDir() {
+    return path5.join(this.stateDir, "sessions");
+  }
+  canonical(p) {
+    return path5.resolve(p);
+  }
+  lockPath(encryptedPath) {
+    return path5.join(this.sessionsDir, `${sha(this.canonical(encryptedPath))}.lock`);
+  }
+  async readRecord(lockDir) {
+    try {
+      return JSON.parse(await fs4.readFile(path5.join(lockDir, "owner.json"), "utf8"));
+    } catch (e) {
+      if (errno(e) === "ENOENT") return void 0;
+      throw e;
+    }
+  }
+  owns(record) {
+    return record.owner.pid === this.owner.pid && record.owner.nonce === this.owner.nonce;
+  }
+  async live(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (e) {
+      return errno(e) === "EPERM";
+    }
+  }
+  async valid(record, encryptedPath) {
+    let canonicalPath;
+    try {
+      canonicalPath = await fs4.realpath(encryptedPath);
+    } catch {
+      canonicalPath = this.canonical(encryptedPath);
+    }
+    return record?.schema === 1 && this.canonical(record.encryptedPath) === this.canonical(canonicalPath) && typeof record.sidecarPath === "string" && record.owner && typeof record.owner.pid === "number" && typeof record.owner.nonce === "string";
+  }
+  async inspect(encryptedPath) {
+    const lockDir = this.lockPath(encryptedPath);
+    let record;
+    try {
+      record = await this.readRecord(lockDir);
+    } catch {
+      return { kind: "ambiguous", reason: "cannot read owner record" };
+    }
+    if (!record) return { kind: "none" };
+    if (!await this.valid(record, encryptedPath)) return { kind: "ambiguous", reason: "owner record does not match canonical paths" };
+    try {
+      await fs4.access(record.sidecarPath);
+    } catch {
+      return { kind: "ambiguous", reason: "owned sidecar is absent" };
+    }
+    if (this.owns(record)) return { kind: "owned", lease: { lockDir, record } };
+    return await this.live(record.owner.pid) ? { kind: "live-foreign", record } : { kind: "stale", record, lockDir };
+  }
+  async acquire(input) {
+    await fs4.mkdir(this.sessionsDir, { recursive: true, mode: 448 });
+    await fs4.chmod(this.stateDir, 448).catch(() => {
+    });
+    await fs4.chmod(this.sessionsDir, 448);
+    const lockDir = this.lockPath(input.encryptedPath);
+    try {
+      await fs4.mkdir(lockDir, { mode: 448 });
+    } catch (e) {
+      if (errno(e) !== "EEXIST") throw e;
+      const inspection = await this.inspect(input.encryptedPath);
+      if (inspection.kind === "live-foreign") throw new Error("SOPS: file is already edited by another SOPS session.");
+      if (inspection.kind === "owned") throw new Error("SOPS: file is already edited by this SOPS session.");
+      throw new Error("SOPS: sidecar ownership requires explicit recovery.");
+    }
+    let created = false;
+    try {
+      const handle = await fs4.open(input.sidecarPath, "wx", 384);
+      created = true;
+      await handle.writeFile(input.plaintext, "utf8");
+      await handle.sync();
+      await handle.chmod(384);
+      await handle.close();
+      const record = { schema: 1, encryptedPath: await fs4.realpath(input.encryptedPath), sidecarPath: this.canonical(input.sidecarPath), encryptedSha256: input.encryptedSha256, plaintextSha256: input.plaintextSha256, owner: { pid: this.owner.pid, nonce: this.owner.nonce ?? (0, import_crypto2.randomUUID)() }, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+      const tmp = path5.join(lockDir, "owner.json.tmp");
+      await fs4.writeFile(tmp, JSON.stringify(record), { encoding: "utf8", mode: 384 });
+      await fs4.rename(tmp, path5.join(lockDir, "owner.json"));
+      return { lockDir, record };
+    } catch (e) {
+      if (created) await fs4.unlink(input.sidecarPath).catch(() => {
+      });
+      await fs4.rmdir(lockDir).catch(() => {
+      });
+      if (errno(e) === "EEXIST") throw new Error(`SOPS: ${input.sidecarPath} already exists and is not owned by this SOPS session.`);
+      throw e;
+    }
+  }
+  async claimStale(record, lockDir) {
+    if (record.encryptedPath !== this.canonical(record.encryptedPath)) throw new Error("SOPS: invalid stale owner record");
+    const recoveryDir = `${lockDir}.stale-${(0, import_crypto2.randomUUID)()}`;
+    await fs4.rename(lockDir, recoveryDir);
+    await fs4.mkdir(lockDir, { mode: 448 });
+    const next = { ...record, owner: { pid: this.owner.pid, nonce: this.owner.nonce ?? (0, import_crypto2.randomUUID)() }, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+    await fs4.writeFile(path5.join(lockDir, "owner.json"), JSON.stringify(next), { encoding: "utf8", mode: 384 });
+    await fs4.rm(recoveryDir, { recursive: true, force: true });
+    return { lockDir, record: next };
+  }
+  async checked(lease) {
+    const current = await this.readRecord(lease.lockDir);
+    if (!current || !this.owns(current) || current.owner.nonce !== lease.record.owner.nonce) throw new Error("SOPS: sidecar ownership changed.");
+    return current;
+  }
+  async updateHashes(lease, encryptedSha256, plaintextSha256) {
+    const current = await this.checked(lease);
+    const next = { ...current, encryptedSha256, plaintextSha256 };
+    const tmp = path5.join(lease.lockDir, "owner.json.tmp");
+    await fs4.writeFile(tmp, JSON.stringify(next), { encoding: "utf8", mode: 384 });
+    await fs4.rename(tmp, path5.join(lease.lockDir, "owner.json"));
+    lease.record = next;
+  }
+  async release(lease, deleteSidecar) {
+    await this.checked(lease);
+    if (deleteSidecar) await fs4.unlink(lease.record.sidecarPath).catch((e) => {
+      if (errno(e) !== "ENOENT") throw e;
+    });
+    await fs4.rm(lease.lockDir, { recursive: true, force: true });
   }
 };
 
@@ -16911,7 +17067,9 @@ var connection = (0, import_node.createConnection)(import_node.ProposedFeatures.
 var documents = new import_node.TextDocuments(TextDocument);
 var settings = DEFAULT_SOPS_SETTINGS;
 var sopsRunner = new SopsRunner(settings);
-var registry = new EditSessionRegistry(sopsRunner);
+var sidecars = new SidecarStore(path6.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: (0, import_crypto3.randomUUID)() });
+var registry = new EditSessionRegistry(sopsRunner, sidecars);
+var zedClient = new ZedClient(connection, false);
 var workspaceFolders = [];
 var verifyPromise = Promise.resolve("ok");
 process.on("unhandledRejection", (reason) => {
@@ -16920,12 +17078,12 @@ process.on("unhandledRejection", (reason) => {
 });
 function uriToFilePath(uri) {
   if (uri.startsWith("file:")) {
-    return (0, import_url2.fileURLToPath)(uri);
+    return (0, import_url3.fileURLToPath)(uri);
   }
   return uri;
 }
 function filePathToUri2(filePath) {
-  return (0, import_url2.pathToFileURL)(filePath).toString();
+  return (0, import_url3.pathToFileURL)(filePath).toString();
 }
 function line0Range(text) {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
@@ -16939,10 +17097,6 @@ function infoDiagnostic(code, message, text) {
     source: "sops",
     code
   };
-}
-function isSidecarOpen(sidecarPath) {
-  const uri = filePathToUri2(sidecarPath);
-  return documents.get(uri) !== void 0;
 }
 async function publishCiphertextDiagnostics(uri, text, sidecarBasename) {
   if (sopsRunner.getVerifyStatus() === "missing") {
@@ -16980,81 +17134,71 @@ function publishSidecarManaged(uri, text) {
     ]
   });
 }
-async function openDecryptedFile(decryptedUri, decryptedFilePath, content) {
-  try {
-    const existingContent = await fs4.readFile(decryptedFilePath, "utf-8");
-    const lines = existingContent.split("\n");
-    const lastLine = Math.max(lines.length - 1, 0);
-    const lastChar = (lines[lastLine] ?? "").length;
-    const result = await connection.workspace.applyEdit({
-      documentChanges: [
-        import_node.CreateFile.create(decryptedUri, { overwrite: true }),
-        import_node.TextDocumentEdit.create(
-          import_node.OptionalVersionedTextDocumentIdentifier.create(decryptedUri, null),
-          [
-            import_node.TextEdit.replace(
-              import_node.Range.create(
-                import_node.Position.create(0, 0),
-                import_node.Position.create(lastLine, lastChar)
-              ),
-              content
-            )
-          ]
-        )
-      ]
-    });
-    return result.applied;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    connection.console.error(`SOPS: Failed to open sidecar via applyEdit: ${msg}`);
-    return false;
-  }
+async function openDecryptedFile(decryptedUri) {
+  await zedClient.openDocument(decryptedUri);
 }
 async function startEditSession(encryptedUri) {
   const encryptedPath = uriToFilePath(encryptedUri);
   const existing = registry.getByEncryptedPath(encryptedPath);
   if (existing) {
-    const opened = await openDecryptedFile(
-      existing.decryptedUri,
-      existing.decryptedFilePath,
-      await fs4.readFile(existing.decryptedFilePath, "utf-8").catch(() => "")
-    );
-    if (!opened) {
-      connection.window.showInformationMessage(
-        `SOPS: decrypted to ${existing.decryptedFilePath} \u2014 open it to edit.`
-      );
+    try {
+      await fs5.stat(existing.decryptedFilePath);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        await registry.close(existing.decryptedUri);
+      } else {
+        connection.window.showErrorMessage(
+          formatSopsError(error, settings.timeoutMs)
+        );
+        return;
+      }
     }
-    return;
+    if (registry.getByEncryptedPath(encryptedPath)) {
+      await openDecryptedFile(existing.decryptedUri);
+      return;
+    }
   }
   let encryptedContent;
   try {
-    encryptedContent = await fs4.readFile(encryptedPath, "utf-8");
+    encryptedContent = await fs5.readFile(encryptedPath, "utf-8");
   } catch (error) {
     connection.window.showErrorMessage(formatSopsError(error, settings.timeoutMs));
     return;
   }
   const fileType = detectFileType(encryptedPath);
   try {
+    const ownership = await sidecars.inspect(encryptedPath);
+    if (ownership.kind === "live-foreign") {
+      connection.window.showErrorMessage("SOPS: file is already edited by another SOPS session.");
+      return;
+    }
+    if (ownership.kind === "stale") {
+      const choice = await connection.window.showWarningMessage(
+        `SOPS: a previous session left ${ownership.record.sidecarPath}.`,
+        { title: "Resume decrypted file" },
+        { title: "Discard decrypted file" },
+        { title: "Cancel" }
+      );
+      if (!choice || choice.title === "Cancel") return;
+      const lease = await sidecars.claimStale(ownership.record, ownership.lockDir);
+      if (choice.title === "Resume decrypted file") {
+        const session2 = await registry.adopt(lease, encryptedContent, fileType);
+        await openDecryptedFile(session2.decryptedUri);
+        return;
+      }
+      await sidecars.release(lease, true);
+    }
     const { session, plaintext } = await registry.start(
       encryptedPath,
       encryptedContent,
       fileType
     );
-    const opened = await openDecryptedFile(
-      session.decryptedUri,
-      session.decryptedFilePath,
-      plaintext
-    );
-    if (!opened) {
-      connection.window.showInformationMessage(
-        `SOPS: decrypted to ${session.decryptedFilePath} \u2014 open it to edit.`
-      );
-    }
+    await openDecryptedFile(session.decryptedUri);
     const cipherDoc = documents.get(encryptedUri);
     await publishCiphertextDiagnostics(
       encryptedUri,
       cipherDoc?.getText() ?? encryptedContent,
-      path5.basename(session.decryptedFilePath)
+      path6.basename(session.decryptedFilePath)
     );
     const sidecarDoc = documents.get(session.decryptedUri);
     publishSidecarManaged(
@@ -17067,9 +17211,14 @@ async function startEditSession(encryptedUri) {
   }
 }
 connection.onInitialize((params) => {
+  zedClient = new ZedClient(
+    connection,
+    supportsShowDocument(params.capabilities)
+  );
   settings = parseSopsSettings(params.initializationOptions);
   sopsRunner = new SopsRunner(settings);
-  registry = new EditSessionRegistry(sopsRunner);
+  sidecars = new SidecarStore(settings.stateDir || path6.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: (0, import_crypto3.randomUUID)() });
+  registry = new EditSessionRegistry(sopsRunner, sidecars);
   workspaceFolders = (params.workspaceFolders ?? []).map(
     (folder) => uriToFilePath(folder.uri)
   );
@@ -17091,6 +17240,8 @@ connection.onInitialized(() => {
       connection.window.showWarningMessage(
         "SOPS binary not found. Install sops and ensure it is on PATH, or set lsp.sops-lsp.settings.sopsPath."
       );
+    } else if (status === "error") {
+      connection.window.showWarningMessage("SOPS verification failed; check sopsPath and settings.");
     } else {
       connection.console.log("SOPS LSP initialized");
     }
@@ -17100,7 +17251,7 @@ connection.onInitialized(() => {
 function settingsFromChange(raw) {
   if (!raw || typeof raw !== "object") return raw;
   const obj = raw;
-  if (obj.sopsPath !== void 0 || obj.autoEdit !== void 0 || obj.timeoutMs !== void 0 || obj.env !== void 0) {
+  if (obj.sopsPath !== void 0 || obj.autoEdit !== void 0 || obj.autoEditAll !== void 0 || obj.keyFile !== void 0 || obj.timeoutMs !== void 0 || obj.env !== void 0) {
     return obj;
   }
   const lsp = obj.lsp;
@@ -17145,32 +17296,8 @@ documents.onDidOpen(async (event) => {
   const uri = document.uri;
   const filePath = uriToFilePath(uri);
   if (isDecryptedFile(filePath)) {
-    if (registry.getByDecryptedUri(uri)) {
+    if (registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath)) {
       publishSidecarManaged(uri, document.getText());
-      return;
-    }
-    const encryptedFilePath = getEncryptedPath(filePath);
-    try {
-      const encryptedContent = await fs4.readFile(encryptedFilePath, "utf-8");
-      const fileType2 = detectFileType(encryptedFilePath);
-      if (!isSopsEncrypted(encryptedContent, fileType2)) return;
-      await registry.adopt(
-        filePath,
-        encryptedFilePath,
-        encryptedContent,
-        fileType2
-      );
-      publishSidecarManaged(uri, document.getText());
-      const encUri = filePathToUri2(encryptedFilePath);
-      const encDoc = documents.get(encUri);
-      if (encDoc) {
-        await publishCiphertextDiagnostics(
-          encUri,
-          encDoc.getText(),
-          path5.basename(filePath)
-        );
-      }
-    } catch {
     }
     return;
   }
@@ -17182,15 +17309,19 @@ documents.onDidOpen(async (event) => {
   }
   await verifyPromise;
   await publishCiphertextDiagnostics(uri, content);
-  await registry.deleteOrphanSidecars(filePath, isSidecarOpen);
   const session = registry.getByEncryptedPath(filePath);
   if (session) {
-    await publishCiphertextDiagnostics(
-      uri,
-      content,
-      path5.basename(session.decryptedFilePath)
-    );
-    return;
+    try {
+      await fs5.access(session.decryptedFilePath);
+      await publishCiphertextDiagnostics(
+        uri,
+        content,
+        path6.basename(session.decryptedFilePath)
+      );
+      return;
+    } catch {
+      await registry.close(session.decryptedUri);
+    }
   }
   void (async () => {
     try {
@@ -17209,11 +17340,11 @@ documents.onDidOpen(async (event) => {
 });
 documents.onDidSave(async (event) => {
   const { document } = event;
-  const ctx = registry.getByDecryptedUri(document.uri);
+  const ctx = registry.getByDecryptedUri(document.uri) ?? registry.lookupDecrypted(document.uri);
   if (!ctx) return;
-  const plaintext = document.getText() ?? await fs4.readFile(ctx.decryptedFilePath, "utf-8");
+  const plaintext = document.getText();
   try {
-    await registry.save(document.uri, plaintext);
+    await registry.save(ctx.decryptedUri, plaintext);
     connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
   } catch (error) {
     const msg = formatSopsError(error, settings.timeoutMs);
@@ -17225,9 +17356,9 @@ documents.onDidClose(async (event) => {
   const uri = event.document.uri;
   const filePath = uriToFilePath(uri);
   if (isDecryptedFile(filePath)) {
-    const session = registry.getByDecryptedUri(uri);
+    const session = registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath);
     const encryptedFilePath = session?.encryptedFilePath;
-    await registry.close(uri);
+    await registry.close(session?.decryptedUri ?? uri);
     connection.sendDiagnostics({ uri, diagnostics: [] });
     if (encryptedFilePath) {
       const encUri = filePathToUri2(encryptedFilePath);
