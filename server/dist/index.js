@@ -16573,6 +16573,8 @@ var EditSessionRegistry = class {
     this.byDecryptedUri.delete(session.decryptedUri);
     this.byDecryptedPath.delete(path2.resolve(session.decryptedFilePath));
   }
+  // `encryptedContent` must be on-disk ciphertext (`fs.readFile`), not an
+  // unsaved editor buffer. encryptLoop compares disk to this snapshot.
   async start(encryptedFilePath, encryptedContent, fileType) {
     const resolved = path2.resolve(encryptedFilePath);
     const existing = this.byEncrypted.get(resolved);
@@ -16635,10 +16637,10 @@ var EditSessionRegistry = class {
     session.state = "encrypting" /* ENCRYPTING */;
     try {
       await this.encryptLoop(session, plaintext);
-    } finally {
-      if (session.state === "encrypting" /* ENCRYPTING */) {
-        session.state = "decrypted" /* DECRYPTED */;
-      }
+    } catch (error) {
+      session.pending = void 0;
+      session.state = "decrypted" /* DECRYPTED */;
+      throw error;
     }
   }
   async encryptLoop(session, plaintext) {
@@ -16646,8 +16648,6 @@ var EditSessionRegistry = class {
     for (; ; ) {
       const onDisk = await fs.readFile(session.encryptedFilePath, "utf-8");
       if (onDisk !== session.encryptedContent) {
-        session.state = "decrypted" /* DECRYPTED */;
-        session.pending = void 0;
         throw new Error(
           `SOPS: ${session.encryptedFilePath} changed on disk; not re-encrypting.`
         );
@@ -16662,26 +16662,37 @@ var EditSessionRegistry = class {
           mode: 384
         });
         await fs.chmod(backupPath, 384);
-        try {
-          await this.runner.reEncrypt(
-            session.encryptedFilePath,
-            current,
-            session.fileType
-          );
-        } catch (error) {
-          await fs.copyFile(backupPath, session.encryptedFilePath);
-          session.state = "decrypted" /* DECRYPTED */;
-          session.pending = void 0;
-          throw error;
-        }
-        session.encryptedContent = await fs.readFile(
-          session.encryptedFilePath,
-          "utf-8"
-        );
-      } finally {
+      } catch (error) {
         await fs.unlink(backupPath).catch(() => {
         });
+        throw error;
       }
+      try {
+        await this.runner.reEncrypt(
+          session.encryptedFilePath,
+          current,
+          session.fileType
+        );
+      } catch (error) {
+        try {
+          await fs.copyFile(backupPath, session.encryptedFilePath);
+        } catch (restoreError) {
+          const original = error instanceof Error ? error.message : String(error);
+          const restore = restoreError instanceof Error ? restoreError.message : String(restoreError);
+          throw new Error(
+            `SOPS: re-encrypt failed (${original}); restore failed (${restore}). Ciphertext backup remains at ${backupPath}`
+          );
+        }
+        await fs.unlink(backupPath).catch(() => {
+        });
+        throw error;
+      }
+      await fs.unlink(backupPath).catch(() => {
+      });
+      session.encryptedContent = await fs.readFile(
+        session.encryptedFilePath,
+        "utf-8"
+      );
       if (session.pending !== void 0) {
         current = session.pending;
         session.pending = void 0;
@@ -17017,7 +17028,7 @@ async function startEditSession(encryptedUri) {
   }
   let encryptedContent;
   try {
-    encryptedContent = documents.get(encryptedUri)?.getText() ?? await fs4.readFile(encryptedPath, "utf-8");
+    encryptedContent = await fs4.readFile(encryptedPath, "utf-8");
   } catch (error) {
     connection.window.showErrorMessage(formatSopsError(error, settings.timeoutMs));
     return;
