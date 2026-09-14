@@ -19,7 +19,7 @@ describe("detectFileType", () => {
     assert.equal(detectFileType("a.ini"), "ini");
     assert.equal(detectFileType("a.toml"), "binary");
     assert.equal(detectFileType("a.txt"), "yaml");
-    assert.equal(detectFileType("secrets.decrypted.yaml"), "yaml");
+    assert.equal(detectFileType(".decrypted.secrets.yaml"), "yaml");
   });
 });
 
@@ -75,20 +75,27 @@ describe("isSopsEncrypted toml/binary", () => {
 });
 
 describe("sidecar naming", () => {
-  it("roundtrips secrets.yaml ↔ secrets.decrypted.yaml", () => {
+  it("roundtrips secrets.yaml ↔ .decrypted.secrets.yaml", () => {
     const enc = path.join("dir", "secrets.yaml");
     const dec = getDecryptedPath(enc);
-    assert.equal(dec, path.join("dir", "secrets.decrypted.yaml"));
+    assert.equal(dec, path.join("dir", ".decrypted.secrets.yaml"));
     assert.equal(getEncryptedPath(dec), enc);
     assert.equal(isDecryptedFile(dec), true);
     assert.equal(isDecryptedFile(enc), false);
   });
 
-  it("roundtrips foo.bar.yml ↔ foo.bar.decrypted.yml", () => {
+  it("roundtrips foo.bar.yml ↔ .decrypted.foo.bar.yml", () => {
     const enc = path.join("x", "foo.bar.yml");
     const dec = getDecryptedPath(enc);
-    assert.equal(dec, path.join("x", "foo.bar.decrypted.yml"));
+    assert.equal(dec, path.join("x", ".decrypted.foo.bar.yml"));
     assert.equal(getEncryptedPath(dec), enc);
+  });
+
+  it("still maps infix secrets.decrypted.yaml back to secrets.yaml", () => {
+    const enc = path.join("dir", "secrets.yaml");
+    const infix = path.join("dir", "secrets.decrypted.yaml");
+    assert.equal(isDecryptedFile(infix), true);
+    assert.equal(getEncryptedPath(infix), enc);
   });
 
   it("treats legacy .decrypted~secrets.yaml as a sidecar whose encrypted path is secrets.yaml", () => {
@@ -98,6 +105,7 @@ describe("sidecar naming", () => {
     assert.equal(isDecryptedFile(legacy), true);
     assert.equal(getEncryptedPath(legacy), enc);
     assert.deepEqual(possibleSidecarPaths(enc), [
+      path.join("dir", ".decrypted.secrets.yaml"),
       path.join("dir", "secrets.decrypted.yaml"),
       path.join("dir", ".decrypted~secrets.yaml"),
     ]);
