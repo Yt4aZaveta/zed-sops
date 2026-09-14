@@ -16,7 +16,7 @@ Make encrypted-file editing stable and as native as Zed allows:
 
 1. Do not decrypt just because a SOPS file was opened.
 2. Offer an explicit **Edit decrypted** code action; auto-open only when `.sops.yaml` says this path is in scope.
-3. Sidecar lives next to the original as `secrets.decrypted.yaml` (not `.decrypted~secrets.yaml`).
+3. Sidecar lives next to the original as `.decrypted.secrets.yaml` (not `secrets.decrypted.yaml` or `.decrypted~secrets.yaml`).
 4. One edit session per file, with a save queue, stale-disk check, and ciphertext backup/rollback.
 5. Do not implement hover/definition/completion, so we do not become the primary YAML LSP.
 6. Wire real settings from Zed. Cover detector, `.sops.yaml` matching, and session lifecycle with tests.
@@ -85,7 +85,7 @@ No hover, definition, completion, or formatting.
 
 For a path with a non-empty extension (Node `path.parse(p).ext !== ""` and the basename is not a dotfile-only name like `.env`):
 
-- encrypted `dir/secrets.yaml` → sidecar `dir/secrets.decrypted.yaml`
+- encrypted `dir/secrets.yaml` → sidecar `dir/.decrypted.secrets.yaml`
 - same for `.yml`, `.json`, `.toml`, `.ini`
 
 Insert the literal segment `.decrypted` immediately before the final extension. Inverse: if the basename matches `^(.*)\.decrypted(\.[^.]+)$`, the encrypted basename is `$1$2`.
@@ -126,13 +126,13 @@ Parse with a real YAML parser (`yaml` package, bundled). Look at `creation_rules
 
 If the regex is invalid, the rule does not match (log a warning; do not crash).
 
-`isAutoEditAllowed(absolutePath, settings, workspaceFolders)` is true only when **all** of these hold:
+`isAutoEditAllowed` is true only when:
 
 1. `settings.autoEdit` is true (default).
-2. Closest config exists and at least one `creation_rules` entry matches.
-3. The absolute path does not contain `/.git/` or `\.git\`.
+2. The absolute path does not contain `/.git/` or `\.git\`.
+3. Either `settings.autoEditAll` is true, **or** the closest config exists and at least one `creation_rules` entry matches.
 
-No config file → never auto-edit. Encrypted files still get the diagnostic and code action.
+No config file → no auto-edit unless `autoEditAll` is true. Encrypted files still get the diagnostic and code action.
 
 ## Settings
 
@@ -145,7 +145,9 @@ Zed user config (example):
       "settings": {
         "sopsPath": "/opt/homebrew/bin/sops",
         "env": { "SOPS_AGE_KEY_FILE": "/Users/me/key.txt" },
+        "keyFile": "/Users/me/id_rsa",
         "autoEdit": true,
+        "autoEditAll": false,
         "timeoutMs": 60000
       }
     }
@@ -207,7 +209,7 @@ Otherwise:
 1. `runner.decrypt(encryptedPath, fileType)`.
 2. Write sidecar with mode `0o600`.
 3. Register session: state `decrypted`, store ciphertext snapshot, paths, file type.
-4. `applyEdit`: `CreateFile` (`overwrite: true`) + full-document `TextEdit` with plaintext. If `applied === false` or the call throws, keep the sidecar and `window/showInformationMessage`: `SOPS: decrypted to <path> — open it to edit.`
+4. Ensure the sidecar on disk contains the plaintext (`0o600`). `applyEdit`: `CreateFile` with `overwrite: true` only — no `TextEdit` (TextEdit dirties the buffer and blocks reload). Then rewrite the sidecar plaintext and `utimes` so Zed reloads a focused, clean, non-empty tab. If `applied === false` or the call throws, still restore disk bytes and `window/showInformationMessage`: `SOPS: decrypted to <path> — open it to edit.`
 5. Publish `sops.editing` on ciphertext and `sops.managed` on sidecar.
 
 URI conversion: `fileURLToPath` / `pathToFileURL` from Node `url`. Do not `uri.slice(7)`.
@@ -280,7 +282,7 @@ Minimum cases:
 
 - json/yaml/ini true and false
 - toml with `[sops]` is encrypted; random toml is not
-- `secrets.yaml` ↔ `secrets.decrypted.yaml` roundtrip
+- `secrets.yaml` ↔ `.decrypted.secrets.yaml` roundtrip
 - `foo.bar.yml` ↔ `foo.bar.decrypted.yml`
 - legacy `.decrypted~secrets.yaml` is a sidecar; `getEncryptedPath` returns `secrets.yaml`
 
@@ -331,7 +333,7 @@ Commit `server/dist/index.js` as today so `cargo`/Zed can pack the extension wit
 | Old | New |
 |---|---|
 | Auto-decrypt every SOPS open | Diagnostic + action; auto only on `.sops.yaml` match |
-| `.decrypted~secrets.yaml` | `secrets.decrypted.yaml`; old prefix still cleaned up |
+| `.decrypted~secrets.yaml` / `secrets.decrypted.yaml` | `.decrypted.secrets.yaml`; old names still cleaned up |
 | In-place restore of ciphertext before every edit | Backup file + `sops` edit; original stays ciphertext |
 | `Plain Text` attachment | Removed |
 | Settings ignored | `LspSettings` wired |
