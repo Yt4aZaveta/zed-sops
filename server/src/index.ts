@@ -5,12 +5,8 @@ import {
   InitializeParams,
   InitializeResult,
   TextDocumentSyncKind,
-  TextDocumentEdit,
-  TextEdit,
   Range,
   Position,
-  OptionalVersionedTextDocumentIdentifier,
-  CreateFile,
   Diagnostic,
   DiagnosticSeverity,
   CodeAction,
@@ -19,6 +15,7 @@ import {
   CodeActionParams,
   ExecuteCommandParams,
   DidChangeConfigurationParams,
+  DeleteFile,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as fs from "fs/promises";
@@ -33,6 +30,8 @@ import {
   isSopsEncrypted,
 } from "./sops-detector";
 import { formatSopsError, SopsRunner } from "./sops-runner";
+import { restoreSidecarAfterOpen, sidecarOpenEdit } from "./sidecar-open";
+import { shouldKeepSidecarOnFocus } from "./session-focus";
 import {
   DEFAULT_SOPS_SETTINGS,
   parseSopsSettings,
@@ -146,50 +145,85 @@ async function openDecryptedFile(
   content: string
 ): Promise<boolean> {
   try {
-    const existingContent = await fs.readFile(decryptedFilePath, "utf-8");
-    const lines = existingContent.split("\n");
-    const lastLine = Math.max(lines.length - 1, 0);
-    const lastChar = (lines[lastLine] ?? "").length;
-    const result = await connection.workspace.applyEdit({
-      documentChanges: [
-        CreateFile.create(decryptedUri, { overwrite: true }),
-        TextDocumentEdit.create(
-          OptionalVersionedTextDocumentIdentifier.create(decryptedUri, null),
-          [
-            TextEdit.replace(
-              Range.create(
-                Position.create(0, 0),
-                Position.create(lastLine, lastChar)
-              ),
-              content
-            ),
-          ]
-        ),
-      ],
-    });
+    await fs.unlink(decryptedFilePath).catch(() => {});
+    const result = await connection.workspace.applyEdit(
+      sidecarOpenEdit(decryptedUri)
+    );
+    await restoreSidecarAfterOpen(decryptedFilePath, content);
     return result.applied;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     connection.console.error(`SOPS: Failed to open sidecar via applyEdit: ${msg}`);
+    try {
+      await restoreSidecarAfterOpen(decryptedFilePath, content);
+    } catch {
+      // sidecar may already be gone
+    }
     return false;
+  }
+}
+
+async function evictSessionsNotFocusedOn(focusedPath: string): Promise<void> {
+  for (const session of registry.list()) {
+    const doc =
+      documents.get(session.decryptedUri) ??
+      documents.get(filePathToUri(session.decryptedFilePath));
+    let disk = "";
+    try {
+      disk = await fs.readFile(session.decryptedFilePath, "utf-8");
+    } catch {
+      disk = "";
+    }
+    if (
+      shouldKeepSidecarOnFocus({
+        focusedPath,
+        encryptedPath: session.encryptedFilePath,
+        decryptedPath: session.decryptedFilePath,
+        bufferText: doc?.getText(),
+        diskText: disk,
+      })
+    ) {
+      continue;
+    }
+    try {
+      await connection.workspace.applyEdit({
+        documentChanges: [
+          DeleteFile.create(session.decryptedUri, { ignoreIfNotExists: true }),
+        ],
+      });
+    } catch {
+      // tab close is best-effort
+    }
+    await registry.close(session.decryptedUri);
   }
 }
 
 async function startEditSession(encryptedUri: string): Promise<void> {
   const encryptedPath = uriToFilePath(encryptedUri);
+  await evictSessionsNotFocusedOn(encryptedPath);
   const existing = registry.getByEncryptedPath(encryptedPath);
   if (existing) {
-    const opened = await openDecryptedFile(
-      existing.decryptedUri,
-      existing.decryptedFilePath,
-      await fs.readFile(existing.decryptedFilePath, "utf-8").catch(() => "")
-    );
-    if (!opened) {
-      connection.window.showInformationMessage(
-        `SOPS: decrypted to ${existing.decryptedFilePath} — open it to edit.`
-      );
+    let plaintext = "";
+    try {
+      plaintext = await fs.readFile(existing.decryptedFilePath, "utf-8");
+    } catch {
+      plaintext = "";
     }
-    return;
+    if (!plaintext) {
+      await registry.close(existing.decryptedUri);
+    } else {
+      const opened = await openDecryptedFile(
+        existing.decryptedUri,
+        existing.decryptedFilePath,
+        plaintext
+      );
+      if (!opened) {
+        connection.window.showInformationMessage(
+          `SOPS: decrypted to ${existing.decryptedFilePath} — open it to edit.`
+        );
+      }
+      return;
+    }
   }
 
   // Snapshot must be disk bytes: sops and encryptLoop both read the file.
@@ -274,6 +308,8 @@ function settingsFromChange(raw: unknown): unknown {
   if (
     obj.sopsPath !== undefined ||
     obj.autoEdit !== undefined ||
+    obj.autoEditAll !== undefined ||
+    obj.keyFile !== undefined ||
     obj.timeoutMs !== undefined ||
     obj.env !== undefined
   ) {
@@ -329,7 +365,8 @@ documents.onDidOpen(async (event) => {
   const filePath = uriToFilePath(uri);
 
   if (isDecryptedFile(filePath)) {
-    if (registry.getByDecryptedUri(uri)) {
+    await evictSessionsNotFocusedOn(filePath);
+    if (registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath)) {
       publishSidecarManaged(uri, document.getText());
       return;
     }
@@ -363,6 +400,7 @@ documents.onDidOpen(async (event) => {
   const content = document.getText();
   const fileType = detectFileType(filePath);
   if (!isSopsEncrypted(content, fileType)) {
+    await evictSessionsNotFocusedOn(filePath);
     connection.sendDiagnostics({ uri, diagnostics: [] });
     return;
   }
@@ -370,16 +408,22 @@ documents.onDidOpen(async (event) => {
   await verifyPromise;
   await publishCiphertextDiagnostics(uri, content);
 
+  await evictSessionsNotFocusedOn(filePath);
   await registry.deleteOrphanSidecars(filePath, isSidecarOpen);
 
   const session = registry.getByEncryptedPath(filePath);
   if (session) {
-    await publishCiphertextDiagnostics(
-      uri,
-      content,
-      path.basename(session.decryptedFilePath)
-    );
-    return;
+    try {
+      await fs.access(session.decryptedFilePath);
+      await publishCiphertextDiagnostics(
+        uri,
+        content,
+        path.basename(session.decryptedFilePath)
+      );
+      return;
+    } catch {
+      await registry.close(session.decryptedUri);
+    }
   }
 
   void (async () => {
@@ -421,9 +465,10 @@ documents.onDidClose(async (event) => {
   const filePath = uriToFilePath(uri);
 
   if (isDecryptedFile(filePath)) {
-    const session = registry.getByDecryptedUri(uri);
+    const session =
+      registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath);
     const encryptedFilePath = session?.encryptedFilePath;
-    await registry.close(uri);
+    await registry.close(session?.decryptedUri ?? uri);
     connection.sendDiagnostics({ uri, diagnostics: [] });
     if (encryptedFilePath) {
       const encUri = filePathToUri(encryptedFilePath);
