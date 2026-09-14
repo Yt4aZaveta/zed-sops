@@ -85,12 +85,13 @@ function containsGitSegment(absolutePath: string): boolean {
 
 export async function isAutoEditAllowed(
   absolutePath: string,
-  settings: Pick<SopsSettings, "autoEdit">,
+  settings: Pick<SopsSettings, "autoEdit" | "autoEditAll">,
   workspaceFolders: string[],
   warn?: (msg: string) => void
 ): Promise<boolean> {
   if (!settings.autoEdit) return false;
   if (containsGitSegment(absolutePath)) return false;
+  if (settings.autoEditAll) return true;
   const configPath = findSopsConfigPath(absolutePath, workspaceFolders);
   if (!configPath) return false;
   let parsed: unknown;

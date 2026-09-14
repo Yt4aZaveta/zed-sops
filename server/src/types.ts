@@ -22,6 +22,8 @@ export interface SopsSettings {
   sopsPath: string;
   env: Record<string, string>;
   autoEdit: boolean;
+  autoEditAll: boolean;
+  keyFile: string;
   timeoutMs: number;
 }
 
@@ -29,6 +31,8 @@ export const DEFAULT_SOPS_SETTINGS: SopsSettings = {
   sopsPath: "sops",
   env: {},
   autoEdit: true,
+  autoEditAll: false,
+  keyFile: "",
   timeoutMs: 60_000,
 };
 
@@ -46,13 +50,25 @@ export function parseSopsSettings(
           )
         )
       : defaults.env;
+  const keyFile =
+    typeof obj.keyFile === "string" ? obj.keyFile : defaults.keyFile;
+  const mergedEnv = { ...env };
+  if (
+    keyFile.length > 0 &&
+    typeof mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE !== "string"
+  ) {
+    mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE = keyFile;
+  }
   return {
     sopsPath:
       typeof obj.sopsPath === "string" && obj.sopsPath.length > 0
         ? obj.sopsPath
         : defaults.sopsPath,
-    env,
+    env: mergedEnv,
     autoEdit: typeof obj.autoEdit === "boolean" ? obj.autoEdit : defaults.autoEdit,
+    autoEditAll:
+      typeof obj.autoEditAll === "boolean" ? obj.autoEditAll : defaults.autoEditAll,
+    keyFile,
     timeoutMs:
       typeof obj.timeoutMs === "number" && Number.isFinite(obj.timeoutMs) && obj.timeoutMs > 0
         ? obj.timeoutMs
@@ -73,4 +89,5 @@ export interface EditSession {
   decryptedUri: string;
   fileType: SopsFileType;
   pending: string | undefined;
+  plaintextSnapshot: string;
 }

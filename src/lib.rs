@@ -46,6 +46,9 @@ fn lsp_options(worktree: &zed::Worktree) -> Result<Value, String> {
     if !map.contains_key("autoEdit") {
         map.insert("autoEdit".to_string(), Value::Bool(true));
     }
+    if !map.contains_key("autoEditAll") {
+        map.insert("autoEditAll".to_string(), Value::Bool(false));
+    }
     if !map.contains_key("timeoutMs") {
         map.insert("timeoutMs".to_string(), json!(60_000));
     }
