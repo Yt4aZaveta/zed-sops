@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
-import { pathToFileURL } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import {
   getDecryptedPath,
   isSopsEncrypted,
@@ -27,11 +27,6 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function writeSidecar(filePath: string, content: string): Promise<void> {
-  await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 0o600 });
-  await fs.chmod(filePath, 0o600);
-}
-
 export class EditSessionRegistry {
   private readonly byEncrypted = new Map<string, EditSession>();
   private readonly byDecryptedUri = new Map<string, EditSession>();
@@ -49,6 +44,10 @@ export class EditSessionRegistry {
 
   getByEncryptedPath(filePath: string): EditSession | undefined {
     return this.byEncrypted.get(path.resolve(filePath));
+  }
+
+  list(): EditSession[] {
+    return [...this.byEncrypted.values()];
   }
 
   private index(session: EditSession): void {
@@ -73,13 +72,11 @@ export class EditSessionRegistry {
     const resolved = path.resolve(encryptedFilePath);
     const existing = this.byEncrypted.get(resolved);
     if (existing) {
-      let plaintext = "";
-      try {
-        plaintext = await fs.readFile(existing.decryptedFilePath, "utf-8");
-      } catch {
-        plaintext = "";
+      if (await exists(existing.decryptedFilePath)) {
+        const plaintext = await fs.readFile(existing.decryptedFilePath, "utf-8");
+        return { session: existing, plaintext };
       }
-      return { session: existing, plaintext };
+      this.unindex(existing);
     }
 
     const decryptedFilePath = getDecryptedPath(resolved);
@@ -90,10 +87,10 @@ export class EditSessionRegistry {
           `SOPS: ${decryptedFilePath} already exists and is not a SOPS sidecar.`
         );
       }
+      await fs.unlink(decryptedFilePath).catch(() => {});
     }
 
     const plaintext = await this.runner.decrypt(resolved, fileType);
-    await writeSidecar(decryptedFilePath, plaintext);
     const session: EditSession = {
       state: FileState.DECRYPTED,
       encryptedFilePath: resolved,
@@ -102,6 +99,7 @@ export class EditSessionRegistry {
       decryptedUri: filePathToUri(decryptedFilePath),
       fileType,
       pending: undefined,
+      plaintextSnapshot: plaintext,
     };
     this.index(session);
     return { session, plaintext };
@@ -125,6 +123,7 @@ export class EditSessionRegistry {
       decryptedUri: filePathToUri(resolvedDec),
       fileType,
       pending: undefined,
+      plaintextSnapshot: "",
     };
     this.index(session);
     return session;
@@ -202,6 +201,7 @@ export class EditSessionRegistry {
         session.encryptedFilePath,
         "utf-8"
       );
+      session.plaintextSnapshot = current;
 
       if (session.pending !== undefined) {
         current = session.pending;
@@ -214,7 +214,16 @@ export class EditSessionRegistry {
   }
 
   async close(decryptedUri: string): Promise<void> {
-    const session = this.byDecryptedUri.get(decryptedUri);
+    let session = this.byDecryptedUri.get(decryptedUri);
+    if (!session) {
+      try {
+        session = this.byDecryptedPath.get(
+          path.resolve(fileURLToPath(decryptedUri))
+        );
+      } catch {
+        session = undefined;
+      }
+    }
     if (!session) return;
     await fs.unlink(session.decryptedFilePath).catch(() => {});
     this.unindex(session);

@@ -31,7 +31,7 @@ function mockRunner(overrides: Partial<SopsRunnerLike> = {}): SopsRunnerLike & {
 }
 
 describe("EditSessionRegistry.start", () => {
-  it("writes sidecar 0o600 and records the ciphertext snapshot", async () => {
+  it("decrypts without pre-writing the sidecar (CreateFile needs a missing path)", async () => {
     const dir = await makeTempDir();
     const enc = path.join(dir, "secrets.yaml");
     await writeFile(enc, SOPS_YAML);
@@ -42,10 +42,23 @@ describe("EditSessionRegistry.start", () => {
     assert.equal(session.encryptedContent, SOPS_YAML);
     assert.equal(session.decryptedFilePath, getDecryptedPath(enc));
     assert.equal(session.state, FileState.DECRYPTED);
-    const stat = await fs.stat(session.decryptedFilePath);
-    assert.equal(stat.mode & 0o777, 0o600);
-    assert.equal(await fs.readFile(session.decryptedFilePath, "utf-8"), plaintext);
+    await assert.rejects(() => fs.stat(session.decryptedFilePath), /ENOENT/);
     assert.equal(runner.decryptCalls, 1);
+  });
+
+  it("re-decrypts when the sidecar was deleted but the session remains", async () => {
+    const dir = await makeTempDir();
+    const enc = path.join(dir, "secrets.yaml");
+    await writeFile(enc, SOPS_YAML);
+    const runner = mockRunner();
+    const registry = new EditSessionRegistry(runner);
+    const first = await registry.start(enc, SOPS_YAML, "yaml");
+    await writeFile(first.session.decryptedFilePath, "stale\n", 0o600);
+    await fs.unlink(first.session.decryptedFilePath);
+    const second = await registry.start(enc, SOPS_YAML, "yaml");
+    assert.equal(runner.decryptCalls, 2);
+    assert.equal(second.plaintext, "plain: true\n");
+    await assert.rejects(() => fs.stat(second.session.decryptedFilePath), /ENOENT/);
   });
 
   it("is idempotent: second start does not decrypt again", async () => {
@@ -55,9 +68,11 @@ describe("EditSessionRegistry.start", () => {
     const runner = mockRunner();
     const registry = new EditSessionRegistry(runner);
     const first = await registry.start(enc, SOPS_YAML, "yaml");
+    await writeFile(first.session.decryptedFilePath, first.plaintext, 0o600);
     const second = await registry.start(enc, SOPS_YAML, "yaml");
     assert.equal(runner.decryptCalls, 1);
     assert.equal(second.session.decryptedFilePath, first.session.decryptedFilePath);
+    assert.equal(second.plaintext, first.plaintext);
   });
 
   it("refuses to overwrite a sidecar whose companion is not SOPS ciphertext", async () => {
@@ -132,7 +147,8 @@ describe("EditSessionRegistry.save", () => {
     await writeFile(enc, SOPS_YAML);
     const runner = mockRunner();
     const registry = new EditSessionRegistry(runner);
-    const { session } = await registry.start(enc, SOPS_YAML, "yaml");
+    const { session, plaintext } = await registry.start(enc, SOPS_YAML, "yaml");
+    await writeFile(session.decryptedFilePath, plaintext, 0o600);
     await writeFile(enc, SOPS_YAML + "# changed\n");
     await assert.rejects(
       () => registry.save(session.decryptedUri, "plain\n"),
@@ -154,7 +170,8 @@ describe("EditSessionRegistry.save", () => {
       },
     });
     const registry = new EditSessionRegistry(runner);
-    const { session } = await registry.start(enc, SOPS_YAML, "yaml");
+    const { session, plaintext } = await registry.start(enc, SOPS_YAML, "yaml");
+    await writeFile(session.decryptedFilePath, plaintext, 0o600);
     await assert.rejects(() => registry.save(session.decryptedUri, "plain\n"));
     assert.equal(await fs.readFile(enc, "utf-8"), SOPS_YAML);
     await fs.access(session.decryptedFilePath);
