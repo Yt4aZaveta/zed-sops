@@ -2,7 +2,6 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
 import * as path from "path";
-import * as os from "os";
 import { SopsFileType, SopsRunnerLike, SopsSettings } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -27,17 +26,20 @@ export function formatSopsError(error: unknown, timeoutMs?: number): string {
 
 export class SopsRunner implements SopsRunnerLike {
   private settings: SopsSettings;
-  private verifyStatus: "ok" | "missing" | undefined;
+  private verifyStatus: "ok" | "missing" | "error" | undefined;
 
   constructor(settings: SopsSettings) {
     this.settings = settings;
   }
 
-  updateSettings(partial: Partial<SopsSettings>): void {
-    this.settings = { ...this.settings, ...partial };
+  updateSettings(next: SopsSettings): boolean {
+    const changed = this.settings.sopsPath !== next.sopsPath || JSON.stringify(this.settings.env) !== JSON.stringify(next.env) || this.settings.timeoutMs !== next.timeoutMs;
+    this.settings = next;
+    if (changed) this.verifyStatus = undefined;
+    return changed;
   }
 
-  getVerifyStatus(): "ok" | "missing" | undefined {
+  getVerifyStatus(): "ok" | "missing" | "error" | undefined {
     return this.verifyStatus;
   }
 
@@ -45,7 +47,7 @@ export class SopsRunner implements SopsRunnerLike {
     return { ...process.env, ...this.settings.env };
   }
 
-  async verify(): Promise<"ok" | "missing"> {
+  async verify(): Promise<"ok" | "missing" | "error"> {
     if (this.verifyStatus) return this.verifyStatus;
     try {
       await execFileAsync(this.settings.sopsPath, ["--version"], {
@@ -54,8 +56,8 @@ export class SopsRunner implements SopsRunnerLike {
         maxBuffer: MAX_BUFFER,
       });
       this.verifyStatus = "ok";
-    } catch {
-      this.verifyStatus = "missing";
+    } catch (error) {
+      this.verifyStatus = (error as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "error";
     }
     return this.verifyStatus;
   }
@@ -73,17 +75,22 @@ export class SopsRunner implements SopsRunnerLike {
     return stdout;
   }
 
-  async reEncrypt(
+  async reEncryptStaged(
     filePath: string,
+    expectedCiphertext: string,
     plaintext: string,
-    _fileType: SopsFileType
-  ): Promise<void> {
-    const tmpDir = os.tmpdir();
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const tmpContentFile = path.join(tmpDir, `sops-content-${id}`);
-    const tmpEditorScript = path.join(tmpDir, `sops-editor-${id}.sh`);
+    fileType: SopsFileType
+  ): Promise<string> {
+    const originalStat = await fs.stat(filePath);
+    const stageDir = await fs.mkdtemp(path.join(path.dirname(filePath), ".zed-sops-stage-"));
+    await fs.chmod(stageDir, 0o700);
+    const staged = path.join(stageDir, path.basename(filePath));
+    const tmpContentFile = path.join(stageDir, "plaintext");
+    const tmpEditorScript = path.join(stageDir, "editor.sh");
 
     try {
+      await fs.writeFile(staged, expectedCiphertext, { encoding: "utf8", mode: originalStat.mode & 0o777 });
+      await fs.chmod(staged, originalStat.mode & 0o777);
       await fs.writeFile(tmpContentFile, plaintext, {
         encoding: "utf-8",
         mode: 0o600,
@@ -92,11 +99,11 @@ export class SopsRunner implements SopsRunnerLike {
       const editorScript = `#!/bin/sh\ncp "$SOPS_ZED_CONTENT" "$1"\n`;
       await fs.writeFile(tmpEditorScript, editorScript, {
         encoding: "utf-8",
-        mode: 0o755,
+        mode: 0o700,
       });
-      await fs.chmod(tmpEditorScript, 0o755);
+      await fs.chmod(tmpEditorScript, 0o700);
 
-      await execFileAsync(this.settings.sopsPath, [filePath], {
+      await execFileAsync(this.settings.sopsPath, ["--input-type", fileType, "--output-type", fileType, staged], {
         env: {
           ...this.env(),
           EDITOR: tmpEditorScript,
@@ -105,9 +112,17 @@ export class SopsRunner implements SopsRunnerLike {
         maxBuffer: MAX_BUFFER,
         timeout: this.settings.timeoutMs,
       });
+      await this.decrypt(staged, fileType);
+      const current = await fs.readFile(filePath, "utf8");
+      if (current !== expectedCiphertext) throw new Error(`SOPS: ${filePath} changed on disk; not publishing staged ciphertext.`);
+      const committed = await fs.readFile(staged, "utf8");
+      await fs.chmod(staged, originalStat.mode & 0o777);
+      const handle = await fs.open(staged, "r"); await handle.sync(); await handle.close();
+      await fs.rename(staged, filePath);
+      const dirHandle = await fs.open(path.dirname(filePath), "r"); await dirHandle.sync(); await dirHandle.close();
+      return committed;
     } finally {
-      await fs.unlink(tmpContentFile).catch(() => {});
-      await fs.unlink(tmpEditorScript).catch(() => {});
+      await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 }

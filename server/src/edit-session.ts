@@ -1,21 +1,22 @@
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import {
-  getDecryptedPath,
-  isSopsEncrypted,
-  possibleSidecarPaths,
-} from "./sops-detector";
+import { createHash } from "crypto";
+import { getDecryptedPath } from "./sops-detector";
+import { SidecarStore } from "./sidecar-store";
 import {
   EditSession,
   FileState,
   SopsFileType,
   SopsRunnerLike,
+  SidecarLease,
 } from "./types";
 
 function filePathToUri(filePath: string): string {
   return pathToFileURL(filePath).toString();
+}
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 async function exists(filePath: string): Promise<boolean> {
@@ -27,12 +28,42 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+async function createSidecarExclusive(
+  filePath: string,
+  plaintext: string
+): Promise<void> {
+  let handle: fs.FileHandle;
+  try {
+    handle = await fs.open(filePath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(
+        `SOPS: ${filePath} already exists and is not owned by this SOPS session.`
+      );
+    }
+    throw error;
+  }
+  let complete = false;
+  try {
+    await handle.writeFile(plaintext, "utf8");
+    await handle.sync();
+    const mode = (await handle.stat()).mode & 0o777;
+    if (mode !== 0o600) {
+      await handle.chmod(0o600);
+    }
+    complete = true;
+  } finally {
+    await handle.close().catch(() => {});
+    if (!complete) await fs.unlink(filePath).catch(() => {});
+  }
+}
+
 export class EditSessionRegistry {
   private readonly byEncrypted = new Map<string, EditSession>();
   private readonly byDecryptedUri = new Map<string, EditSession>();
   private readonly byDecryptedPath = new Map<string, EditSession>();
 
-  constructor(private readonly runner: SopsRunnerLike) {}
+  constructor(private readonly runner: SopsRunnerLike, private readonly sidecars: SidecarStore) {}
 
   getByDecryptedUri(uri: string): EditSession | undefined {
     return this.byDecryptedUri.get(uri);
@@ -44,6 +75,16 @@ export class EditSessionRegistry {
 
   getByEncryptedPath(filePath: string): EditSession | undefined {
     return this.byEncrypted.get(path.resolve(filePath));
+  }
+
+  lookupDecrypted(uri: string): EditSession | undefined {
+    const direct = this.byDecryptedUri.get(uri);
+    if (direct) return direct;
+    try {
+      return this.byDecryptedPath.get(path.resolve(fileURLToPath(uri)));
+    } catch {
+      return undefined;
+    }
   }
 
   list(): EditSession[] {
@@ -76,21 +117,13 @@ export class EditSessionRegistry {
         const plaintext = await fs.readFile(existing.decryptedFilePath, "utf-8");
         return { session: existing, plaintext };
       }
+      await this.sidecars.release(existing.lease, false).catch(() => {});
       this.unindex(existing);
     }
 
-    const decryptedFilePath = getDecryptedPath(resolved);
-    if (await exists(decryptedFilePath)) {
-      const companion = await fs.readFile(resolved, "utf-8").catch(() => "");
-      if (!isSopsEncrypted(companion, fileType)) {
-        throw new Error(
-          `SOPS: ${decryptedFilePath} already exists and is not a SOPS sidecar.`
-        );
-      }
-      await fs.unlink(decryptedFilePath).catch(() => {});
-    }
-
     const plaintext = await this.runner.decrypt(resolved, fileType);
+    const decryptedFilePath = getDecryptedPath(resolved);
+    const lease = await this.sidecars.acquire({ encryptedPath: resolved, sidecarPath: decryptedFilePath, plaintext, encryptedSha256: sha256(encryptedContent), plaintextSha256: sha256(plaintext) });
     const session: EditSession = {
       state: FileState.DECRYPTED,
       encryptedFilePath: resolved,
@@ -100,21 +133,21 @@ export class EditSessionRegistry {
       fileType,
       pending: undefined,
       plaintextSnapshot: plaintext,
+      lease,
     };
     this.index(session);
     return { session, plaintext };
   }
 
   async adopt(
-    decryptedFilePath: string,
-    encryptedFilePath: string,
+    lease: SidecarLease,
     encryptedContent: string,
     fileType: SopsFileType
   ): Promise<EditSession> {
-    const resolvedEnc = path.resolve(encryptedFilePath);
+    const resolvedEnc = path.resolve(lease.record.encryptedPath);
     const existing = this.byEncrypted.get(resolvedEnc);
     if (existing) return existing;
-    const resolvedDec = path.resolve(decryptedFilePath);
+    const resolvedDec = path.resolve(lease.record.sidecarPath);
     const session: EditSession = {
       state: FileState.DECRYPTED,
       encryptedFilePath: resolvedEnc,
@@ -124,13 +157,14 @@ export class EditSessionRegistry {
       fileType,
       pending: undefined,
       plaintextSnapshot: "",
+      lease,
     };
     this.index(session);
     return session;
   }
 
   async save(decryptedUri: string, plaintext: string): Promise<void> {
-    const session = this.byDecryptedUri.get(decryptedUri);
+    const session = this.lookupDecrypted(decryptedUri);
     if (!session) return;
     if (session.state === FileState.ENCRYPTING) {
       session.pending = plaintext;
@@ -156,52 +190,9 @@ export class EditSessionRegistry {
         );
       }
 
-      const backupPath = path.join(
-        os.tmpdir(),
-        `sops-backup-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      );
-      try {
-        await fs.writeFile(backupPath, session.encryptedContent, {
-          encoding: "utf-8",
-          mode: 0o600,
-        });
-        await fs.chmod(backupPath, 0o600);
-      } catch (error) {
-        await fs.unlink(backupPath).catch(() => {});
-        throw error;
-      }
-
-      try {
-        await this.runner.reEncrypt(
-          session.encryptedFilePath,
-          current,
-          session.fileType
-        );
-      } catch (error) {
-        try {
-          await fs.copyFile(backupPath, session.encryptedFilePath);
-        } catch (restoreError) {
-          const original = error instanceof Error ? error.message : String(error);
-          const restore =
-            restoreError instanceof Error
-              ? restoreError.message
-              : String(restoreError);
-          // Keep the backup; ciphertext may otherwise be the only remaining copy.
-          throw new Error(
-            `SOPS: re-encrypt failed (${original}); restore failed (${restore}). Ciphertext backup remains at ${backupPath}`
-          );
-        }
-        await fs.unlink(backupPath).catch(() => {});
-        throw error;
-      }
-
-      await fs.unlink(backupPath).catch(() => {});
-
-      session.encryptedContent = await fs.readFile(
-        session.encryptedFilePath,
-        "utf-8"
-      );
+      session.encryptedContent = await this.runner.reEncryptStaged(session.encryptedFilePath, session.encryptedContent, current, session.fileType);
       session.plaintextSnapshot = current;
+      await this.sidecars.updateHashes(session.lease, sha256(session.encryptedContent), sha256(current));
 
       if (session.pending !== undefined) {
         current = session.pending;
@@ -225,19 +216,7 @@ export class EditSessionRegistry {
       }
     }
     if (!session) return;
-    await fs.unlink(session.decryptedFilePath).catch(() => {});
+    await this.sidecars.release(session.lease, true);
     this.unindex(session);
-  }
-
-  async deleteOrphanSidecars(
-    encryptedFilePath: string,
-    isOpen: (sidecarPath: string) => boolean
-  ): Promise<void> {
-    for (const sidecar of possibleSidecarPaths(encryptedFilePath)) {
-      if (!(await exists(sidecar))) continue;
-      if (isOpen(sidecar)) continue;
-      if (this.byDecryptedPath.has(path.resolve(sidecar))) continue;
-      await fs.unlink(sidecar).catch(() => {});
-    }
   }
 }

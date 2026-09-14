@@ -15,23 +15,22 @@ import {
   CodeActionParams,
   ExecuteCommandParams,
   DidChangeConfigurationParams,
-  DeleteFile,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { randomUUID } from "crypto";
 import { fileURLToPath, pathToFileURL } from "url";
 import { EditSessionRegistry } from "./edit-session";
 import { isAutoEditAllowed } from "./sops-config";
 import {
   detectFileType,
-  getEncryptedPath,
   isDecryptedFile,
   isSopsEncrypted,
 } from "./sops-detector";
 import { formatSopsError, SopsRunner } from "./sops-runner";
-import { restoreSidecarAfterOpen, sidecarOpenEdit } from "./sidecar-open";
-import { shouldKeepSidecarOnFocus } from "./session-focus";
+import { supportsShowDocument, ZedClient } from "./zed-client";
+import { SidecarStore } from "./sidecar-store";
 import {
   DEFAULT_SOPS_SETTINGS,
   parseSopsSettings,
@@ -56,9 +55,11 @@ const documents = new TextDocuments(TextDocument);
 
 let settings: SopsSettings = DEFAULT_SOPS_SETTINGS;
 let sopsRunner = new SopsRunner(settings);
-let registry = new EditSessionRegistry(sopsRunner);
+let sidecars = new SidecarStore(path.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: randomUUID() });
+let registry = new EditSessionRegistry(sopsRunner, sidecars);
+let zedClient = new ZedClient(connection, false);
 let workspaceFolders: string[] = [];
-let verifyPromise: Promise<"ok" | "missing"> = Promise.resolve("ok");
+let verifyPromise: Promise<"ok" | "missing" | "error"> = Promise.resolve("ok");
 
 process.on("unhandledRejection", (reason) => {
   const msg =
@@ -90,11 +91,6 @@ function infoDiagnostic(code: string, message: string, text: string): Diagnostic
     source: "sops",
     code,
   };
-}
-
-function isSidecarOpen(sidecarPath: string): boolean {
-  const uri = filePathToUri(sidecarPath);
-  return documents.get(uri) !== undefined;
 }
 
 async function publishCiphertextDiagnostics(
@@ -139,89 +135,28 @@ function publishSidecarManaged(uri: string, text: string): void {
   });
 }
 
-async function openDecryptedFile(
-  decryptedUri: string,
-  decryptedFilePath: string,
-  content: string
-): Promise<boolean> {
-  try {
-    await fs.unlink(decryptedFilePath).catch(() => {});
-    const result = await connection.workspace.applyEdit(
-      sidecarOpenEdit(decryptedUri)
-    );
-    await restoreSidecarAfterOpen(decryptedFilePath, content);
-    return result.applied;
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    connection.console.error(`SOPS: Failed to open sidecar via applyEdit: ${msg}`);
-    try {
-      await restoreSidecarAfterOpen(decryptedFilePath, content);
-    } catch {
-      // sidecar may already be gone
-    }
-    return false;
-  }
-}
-
-async function evictSessionsNotFocusedOn(focusedPath: string): Promise<void> {
-  for (const session of registry.list()) {
-    const doc =
-      documents.get(session.decryptedUri) ??
-      documents.get(filePathToUri(session.decryptedFilePath));
-    let disk = "";
-    try {
-      disk = await fs.readFile(session.decryptedFilePath, "utf-8");
-    } catch {
-      disk = "";
-    }
-    if (
-      shouldKeepSidecarOnFocus({
-        focusedPath,
-        encryptedPath: session.encryptedFilePath,
-        decryptedPath: session.decryptedFilePath,
-        bufferText: doc?.getText(),
-        diskText: disk,
-      })
-    ) {
-      continue;
-    }
-    try {
-      await connection.workspace.applyEdit({
-        documentChanges: [
-          DeleteFile.create(session.decryptedUri, { ignoreIfNotExists: true }),
-        ],
-      });
-    } catch {
-      // tab close is best-effort
-    }
-    await registry.close(session.decryptedUri);
-  }
+async function openDecryptedFile(decryptedUri: string): Promise<void> {
+  await zedClient.openDocument(decryptedUri);
 }
 
 async function startEditSession(encryptedUri: string): Promise<void> {
   const encryptedPath = uriToFilePath(encryptedUri);
-  await evictSessionsNotFocusedOn(encryptedPath);
   const existing = registry.getByEncryptedPath(encryptedPath);
   if (existing) {
-    let plaintext = "";
     try {
-      plaintext = await fs.readFile(existing.decryptedFilePath, "utf-8");
-    } catch {
-      plaintext = "";
-    }
-    if (!plaintext) {
-      await registry.close(existing.decryptedUri);
-    } else {
-      const opened = await openDecryptedFile(
-        existing.decryptedUri,
-        existing.decryptedFilePath,
-        plaintext
-      );
-      if (!opened) {
-        connection.window.showInformationMessage(
-          `SOPS: decrypted to ${existing.decryptedFilePath} — open it to edit.`
+      await fs.stat(existing.decryptedFilePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        await registry.close(existing.decryptedUri);
+      } else {
+        connection.window.showErrorMessage(
+          formatSopsError(error, settings.timeoutMs)
         );
+        return;
       }
+    }
+    if (registry.getByEncryptedPath(encryptedPath)) {
+      await openDecryptedFile(existing.decryptedUri);
       return;
     }
   }
@@ -237,21 +172,33 @@ async function startEditSession(encryptedUri: string): Promise<void> {
   }
   const fileType = detectFileType(encryptedPath);
   try {
+    const ownership = await sidecars.inspect(encryptedPath);
+    if (ownership.kind === "live-foreign") {
+      connection.window.showErrorMessage("SOPS: file is already edited by another SOPS session.");
+      return;
+    }
+    if (ownership.kind === "stale") {
+      const choice = await connection.window.showWarningMessage(
+        `SOPS: a previous session left ${ownership.record.sidecarPath}.`,
+        { title: "Resume decrypted file" },
+        { title: "Discard decrypted file" },
+        { title: "Cancel" }
+      );
+      if (!choice || choice.title === "Cancel") return;
+      const lease = await sidecars.claimStale(ownership.record, ownership.lockDir);
+      if (choice.title === "Resume decrypted file") {
+        const session = await registry.adopt(lease, encryptedContent, fileType);
+        await openDecryptedFile(session.decryptedUri);
+        return;
+      }
+      await sidecars.release(lease, true);
+    }
     const { session, plaintext } = await registry.start(
       encryptedPath,
       encryptedContent,
       fileType
     );
-    const opened = await openDecryptedFile(
-      session.decryptedUri,
-      session.decryptedFilePath,
-      plaintext
-    );
-    if (!opened) {
-      connection.window.showInformationMessage(
-        `SOPS: decrypted to ${session.decryptedFilePath} — open it to edit.`
-      );
-    }
+    await openDecryptedFile(session.decryptedUri);
     const cipherDoc = documents.get(encryptedUri);
     await publishCiphertextDiagnostics(
       encryptedUri,
@@ -270,9 +217,14 @@ async function startEditSession(encryptedUri: string): Promise<void> {
 }
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+  zedClient = new ZedClient(
+    connection,
+    supportsShowDocument(params.capabilities)
+  );
   settings = parseSopsSettings(params.initializationOptions);
   sopsRunner = new SopsRunner(settings);
-  registry = new EditSessionRegistry(sopsRunner);
+  sidecars = new SidecarStore(settings.stateDir || path.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: randomUUID() });
+  registry = new EditSessionRegistry(sopsRunner, sidecars);
   workspaceFolders = (params.workspaceFolders ?? []).map((folder) =>
     uriToFilePath(folder.uri)
   );
@@ -295,6 +247,8 @@ connection.onInitialized(() => {
       connection.window.showWarningMessage(
         "SOPS binary not found. Install sops and ensure it is on PATH, or set lsp.sops-lsp.settings.sopsPath."
       );
+    } else if (status === "error") {
+      connection.window.showWarningMessage("SOPS verification failed; check sopsPath and settings.");
     } else {
       connection.console.log("SOPS LSP initialized");
     }
@@ -365,34 +319,8 @@ documents.onDidOpen(async (event) => {
   const filePath = uriToFilePath(uri);
 
   if (isDecryptedFile(filePath)) {
-    await evictSessionsNotFocusedOn(filePath);
     if (registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath)) {
       publishSidecarManaged(uri, document.getText());
-      return;
-    }
-    const encryptedFilePath = getEncryptedPath(filePath);
-    try {
-      const encryptedContent = await fs.readFile(encryptedFilePath, "utf-8");
-      const fileType = detectFileType(encryptedFilePath);
-      if (!isSopsEncrypted(encryptedContent, fileType)) return;
-      await registry.adopt(
-        filePath,
-        encryptedFilePath,
-        encryptedContent,
-        fileType
-      );
-      publishSidecarManaged(uri, document.getText());
-      const encUri = filePathToUri(encryptedFilePath);
-      const encDoc = documents.get(encUri);
-      if (encDoc) {
-        await publishCiphertextDiagnostics(
-          encUri,
-          encDoc.getText(),
-          path.basename(filePath)
-        );
-      }
-    } catch {
-      // Companion missing — ignore
     }
     return;
   }
@@ -400,16 +328,12 @@ documents.onDidOpen(async (event) => {
   const content = document.getText();
   const fileType = detectFileType(filePath);
   if (!isSopsEncrypted(content, fileType)) {
-    await evictSessionsNotFocusedOn(filePath);
     connection.sendDiagnostics({ uri, diagnostics: [] });
     return;
   }
 
   await verifyPromise;
   await publishCiphertextDiagnostics(uri, content);
-
-  await evictSessionsNotFocusedOn(filePath);
-  await registry.deleteOrphanSidecars(filePath, isSidecarOpen);
 
   const session = registry.getByEncryptedPath(filePath);
   if (session) {
@@ -443,15 +367,13 @@ documents.onDidOpen(async (event) => {
 
 documents.onDidSave(async (event) => {
   const { document } = event;
-  const ctx = registry.getByDecryptedUri(document.uri);
+  const ctx =
+    registry.getByDecryptedUri(document.uri) ??
+    registry.lookupDecrypted(document.uri);
   if (!ctx) return;
-  // includeText keeps the in-memory document current; that is the plaintext.
-  // Fall back to the sidecar on disk only if getText is unavailable.
-  const plaintext =
-    document.getText() ??
-    (await fs.readFile(ctx.decryptedFilePath, "utf-8"));
+  const plaintext = document.getText();
   try {
-    await registry.save(document.uri, plaintext);
+    await registry.save(ctx.decryptedUri, plaintext);
     connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
   } catch (error: unknown) {
     const msg = formatSopsError(error, settings.timeoutMs);

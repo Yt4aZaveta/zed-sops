@@ -41,4 +41,19 @@ describe("parseSopsSettings", () => {
     assert.equal(parsed.env.SOPS_AGE_SSH_PRIVATE_KEY_FILE, "/other/key");
     assert.equal(parsed.keyFile, "/Users/me/id_rsa");
   });
+
+  it("replaces derived keyFile environment when keyFile changes or clears", () => {
+    let settings = parseSopsSettings({ keyFile: "/key-a" });
+    assert.equal(settings.env.SOPS_AGE_SSH_PRIVATE_KEY_FILE, "/key-a");
+    settings = parseSopsSettings({ keyFile: "/key-b" }, { ...settings, env: {} });
+    assert.equal(settings.env.SOPS_AGE_SSH_PRIVATE_KEY_FILE, "/key-b");
+    settings = parseSopsSettings({ keyFile: "", env: {} }, { ...settings, env: {} });
+    assert.equal(settings.env.SOPS_AGE_SSH_PRIVATE_KEY_FILE, undefined);
+  });
+
+  it("replaces configured environment entries", () => {
+    const initial = parseSopsSettings({ env: { OLD: "1" } });
+    const next = parseSopsSettings({ env: {} }, initial);
+    assert.deepEqual(next.env, {});
+  });
 });

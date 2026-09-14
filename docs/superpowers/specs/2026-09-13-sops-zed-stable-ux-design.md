@@ -350,3 +350,6 @@ Commit `server/dist/index.js` as today so `cargo`/Zed can pack the extension wit
 7. Short README and `extension.toml` language list.
 
 Each step stays inside this spec. Do not add creation_rules encryption or dotenv as a drive-by.
+# Superseded
+
+This design is superseded by `docs/superpowers/specs/2026-09-14-zed-sops-architecture-review.md` and `docs/superpowers/plans/2026-09-14-sops-zed-stable-no-data-loss.md`. Historical evidence below is retained unchanged.

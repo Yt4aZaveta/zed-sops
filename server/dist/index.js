@@ -3082,7 +3082,7 @@ var require_main = __commonJS({
     var ril_1 = require_ril();
     ril_1.default.install();
     var path7 = require("path");
-    var os3 = require("os");
+    var os = require("os");
     var crypto_1 = require("crypto");
     var net_1 = require("net");
     var api_1 = require_api();
@@ -3219,7 +3219,7 @@ var require_main = __commonJS({
       if (XDG_RUNTIME_DIR) {
         result = path7.join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
       } else {
-        result = path7.join(os3.tmpdir(), `vscode-${randomSuffix}.sock`);
+        result = path7.join(os.tmpdir(), `vscode-${randomSuffix}.sock`);
       }
       const limit = safeIpcPathLengths.get(process.platform);
       if (limit !== void 0 && result.length > limit) {
@@ -3673,8 +3673,8 @@ var require_main2 = __commonJS({
         }
         TextDocumentEdit2.is = is;
       })(TextDocumentEdit || (exports3.TextDocumentEdit = TextDocumentEdit = {}));
-      var CreateFile2;
-      (function(CreateFile3) {
+      var CreateFile;
+      (function(CreateFile2) {
         function create(uri, options, annotation) {
           var result = {
             kind: "create",
@@ -3688,13 +3688,13 @@ var require_main2 = __commonJS({
           }
           return result;
         }
-        CreateFile3.create = create;
+        CreateFile2.create = create;
         function is(value) {
           var candidate = value;
           return candidate && candidate.kind === "create" && Is.string(candidate.uri) && (candidate.options === void 0 || (candidate.options.overwrite === void 0 || Is.boolean(candidate.options.overwrite)) && (candidate.options.ignoreIfExists === void 0 || Is.boolean(candidate.options.ignoreIfExists))) && (candidate.annotationId === void 0 || ChangeAnnotationIdentifier.is(candidate.annotationId));
         }
-        CreateFile3.is = is;
-      })(CreateFile2 || (exports3.CreateFile = CreateFile2 = {}));
+        CreateFile2.is = is;
+      })(CreateFile || (exports3.CreateFile = CreateFile = {}));
       var RenameFile;
       (function(RenameFile2) {
         function create(oldUri, newUri, options, annotation) {
@@ -3718,8 +3718,8 @@ var require_main2 = __commonJS({
         }
         RenameFile2.is = is;
       })(RenameFile || (exports3.RenameFile = RenameFile = {}));
-      var DeleteFile2;
-      (function(DeleteFile3) {
+      var DeleteFile;
+      (function(DeleteFile2) {
         function create(uri, options, annotation) {
           var result = {
             kind: "delete",
@@ -3733,20 +3733,20 @@ var require_main2 = __commonJS({
           }
           return result;
         }
-        DeleteFile3.create = create;
+        DeleteFile2.create = create;
         function is(value) {
           var candidate = value;
           return candidate && candidate.kind === "delete" && Is.string(candidate.uri) && (candidate.options === void 0 || (candidate.options.recursive === void 0 || Is.boolean(candidate.options.recursive)) && (candidate.options.ignoreIfNotExists === void 0 || Is.boolean(candidate.options.ignoreIfNotExists))) && (candidate.annotationId === void 0 || ChangeAnnotationIdentifier.is(candidate.annotationId));
         }
-        DeleteFile3.is = is;
-      })(DeleteFile2 || (exports3.DeleteFile = DeleteFile2 = {}));
+        DeleteFile2.is = is;
+      })(DeleteFile || (exports3.DeleteFile = DeleteFile = {}));
       var WorkspaceEdit;
       (function(WorkspaceEdit2) {
         function is(value) {
           var candidate = value;
           return candidate && (candidate.changes !== void 0 || candidate.documentChanges !== void 0) && (candidate.documentChanges === void 0 || candidate.documentChanges.every(function(change) {
             if (Is.string(change.kind)) {
-              return CreateFile2.is(change) || RenameFile.is(change) || DeleteFile2.is(change);
+              return CreateFile.is(change) || RenameFile.is(change) || DeleteFile.is(change);
             } else {
               return TextDocumentEdit.is(change);
             }
@@ -3981,10 +3981,10 @@ var require_main2 = __commonJS({
             var operation;
             var id;
             if (annotation === void 0) {
-              operation = CreateFile2.create(uri, options);
+              operation = CreateFile.create(uri, options);
             } else {
               id = ChangeAnnotationIdentifier.is(annotation) ? annotation : this._changeAnnotations.manage(annotation);
-              operation = CreateFile2.create(uri, options, id);
+              operation = CreateFile.create(uri, options, id);
             }
             this._workspaceEdit.documentChanges.push(operation);
             if (id !== void 0) {
@@ -4029,10 +4029,10 @@ var require_main2 = __commonJS({
             var operation;
             var id;
             if (annotation === void 0) {
-              operation = DeleteFile2.create(uri, options);
+              operation = DeleteFile.create(uri, options);
             } else {
               id = ChangeAnnotationIdentifier.is(annotation) ? annotation : this._changeAnnotations.manage(annotation);
-              operation = DeleteFile2.create(uri, options, id);
+              operation = DeleteFile.create(uri, options, id);
             }
             this._workspaceEdit.documentChanges.push(operation);
             if (id !== void 0) {
@@ -7438,9 +7438,9 @@ var require_notebook = __commonJS({
               const array = changedCells.structure.array;
               notebookDocument.cells.splice(array.start, array.deleteCount, ...array.cells !== void 0 ? array.cells : []);
               if (changedCells.structure.didOpen !== void 0) {
-                for (const open of changedCells.structure.didOpen) {
-                  cellTextDocumentConnection.openTextDocument({ textDocument: open });
-                  opened.push(open.uri);
+                for (const open4 of changedCells.structure.didOpen) {
+                  cellTextDocumentConnection.openTextDocument({ textDocument: open4 });
+                  opened.push(open4.uri);
                 }
               }
               if (changedCells.structure.didClose) {
@@ -7477,8 +7477,8 @@ var require_notebook = __commonJS({
             changeEvent.metadata = { old: oldMetadata, new: notebookDocument.metadata };
           }
           const added = [];
-          for (const open of opened) {
-            added.push(this.getNotebookCell(open));
+          for (const open4 of opened) {
+            added.push(this.getNotebookCell(open4));
           }
           const removed = [];
           for (const close of closed) {
@@ -16206,7 +16206,7 @@ var require_dist = __commonJS({
 });
 
 // src/index.ts
-var import_node2 = __toESM(require_node3());
+var import_node = __toESM(require_node3());
 
 // node_modules/vscode-languageserver-textdocument/lib/esm/main.js
 var FullTextDocument = class _FullTextDocument {
@@ -16435,13 +16435,14 @@ function getWellformedEdit(textEdit) {
 // src/index.ts
 var fs5 = __toESM(require("fs/promises"));
 var path6 = __toESM(require("path"));
-var import_url2 = require("url");
+var import_crypto3 = require("crypto");
+var import_url3 = require("url");
 
 // src/edit-session.ts
 var fs = __toESM(require("fs/promises"));
-var os = __toESM(require("os"));
 var path2 = __toESM(require("path"));
 var import_url = require("url");
+var import_crypto = require("crypto");
 
 // src/sops-detector.ts
 var path = __toESM(require("path"));
@@ -16478,42 +16479,6 @@ function getDecryptedPath(encryptedFilePath) {
     `${DOT_PREFIX}${path.basename(encryptedFilePath)}`
   );
 }
-function getInfixDecryptedPath(encryptedFilePath) {
-  const dir = path.dirname(encryptedFilePath);
-  const parsed = path.parse(encryptedFilePath);
-  if (parsed.ext !== "") {
-    return path.join(dir, `${parsed.name}.decrypted${parsed.ext}`);
-  }
-  return path.join(dir, `${parsed.base}.decrypted`);
-}
-function getLegacyDecryptedPath(encryptedFilePath) {
-  return path.join(
-    path.dirname(encryptedFilePath),
-    `${LEGACY_PREFIX}${path.basename(encryptedFilePath)}`
-  );
-}
-function getEncryptedPath(decryptedFilePath) {
-  const dir = path.dirname(decryptedFilePath);
-  const name = path.basename(decryptedFilePath);
-  if (name.startsWith(LEGACY_PREFIX)) {
-    return path.join(dir, name.slice(LEGACY_PREFIX.length));
-  }
-  if (name.startsWith(DOT_PREFIX)) {
-    return path.join(dir, name.slice(DOT_PREFIX.length));
-  }
-  const match = name.match(INFIX_SIDECAR_RE);
-  if (match) {
-    return path.join(dir, `${match[1]}${match[2]}`);
-  }
-  return decryptedFilePath;
-}
-function possibleSidecarPaths(encryptedFilePath) {
-  return [
-    getDecryptedPath(encryptedFilePath),
-    getInfixDecryptedPath(encryptedFilePath),
-    getLegacyDecryptedPath(encryptedFilePath)
-  ];
-}
 function detectFileType(filePath) {
   const lower = filePath.toLowerCase();
   if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "yaml";
@@ -16530,6 +16495,7 @@ var DEFAULT_SOPS_SETTINGS = {
   autoEdit: true,
   autoEditAll: false,
   keyFile: "",
+  stateDir: "",
   timeoutMs: 6e4
 };
 function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
@@ -16538,8 +16504,11 @@ function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
     Object.entries(obj.env).filter(
       (entry) => typeof entry[1] === "string"
     )
-  ) : defaults.env;
+  ) : { ...defaults.env };
   const keyFile = typeof obj.keyFile === "string" ? obj.keyFile : defaults.keyFile;
+  if (obj.env === void 0 && env.SOPS_AGE_SSH_PRIVATE_KEY_FILE === defaults.keyFile) {
+    delete env.SOPS_AGE_SSH_PRIVATE_KEY_FILE;
+  }
   const mergedEnv = { ...env };
   if (keyFile.length > 0 && typeof mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE !== "string") {
     mergedEnv.SOPS_AGE_SSH_PRIVATE_KEY_FILE = keyFile;
@@ -16550,6 +16519,7 @@ function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
     autoEdit: typeof obj.autoEdit === "boolean" ? obj.autoEdit : defaults.autoEdit,
     autoEditAll: typeof obj.autoEditAll === "boolean" ? obj.autoEditAll : defaults.autoEditAll,
     keyFile,
+    stateDir: typeof obj.stateDir === "string" ? obj.stateDir : defaults.stateDir,
     timeoutMs: typeof obj.timeoutMs === "number" && Number.isFinite(obj.timeoutMs) && obj.timeoutMs > 0 ? obj.timeoutMs : defaults.timeoutMs
   };
 }
@@ -16557,6 +16527,9 @@ function parseSopsSettings(raw, defaults = DEFAULT_SOPS_SETTINGS) {
 // src/edit-session.ts
 function filePathToUri(filePath) {
   return (0, import_url.pathToFileURL)(filePath).toString();
+}
+function sha256(value) {
+  return (0, import_crypto.createHash)("sha256").update(value).digest("hex");
 }
 async function exists(filePath) {
   try {
@@ -16567,8 +16540,9 @@ async function exists(filePath) {
   }
 }
 var EditSessionRegistry = class {
-  constructor(runner) {
+  constructor(runner, sidecars2) {
     this.runner = runner;
+    this.sidecars = sidecars2;
     this.byEncrypted = /* @__PURE__ */ new Map();
     this.byDecryptedUri = /* @__PURE__ */ new Map();
     this.byDecryptedPath = /* @__PURE__ */ new Map();
@@ -16581,6 +16555,15 @@ var EditSessionRegistry = class {
   }
   getByEncryptedPath(filePath) {
     return this.byEncrypted.get(path2.resolve(filePath));
+  }
+  lookupDecrypted(uri) {
+    const direct = this.byDecryptedUri.get(uri);
+    if (direct) return direct;
+    try {
+      return this.byDecryptedPath.get(path2.resolve((0, import_url.fileURLToPath)(uri)));
+    } catch {
+      return void 0;
+    }
   }
   list() {
     return [...this.byEncrypted.values()];
@@ -16605,20 +16588,13 @@ var EditSessionRegistry = class {
         const plaintext2 = await fs.readFile(existing.decryptedFilePath, "utf-8");
         return { session: existing, plaintext: plaintext2 };
       }
+      await this.sidecars.release(existing.lease, false).catch(() => {
+      });
       this.unindex(existing);
     }
-    const decryptedFilePath = getDecryptedPath(resolved);
-    if (await exists(decryptedFilePath)) {
-      const companion = await fs.readFile(resolved, "utf-8").catch(() => "");
-      if (!isSopsEncrypted(companion, fileType)) {
-        throw new Error(
-          `SOPS: ${decryptedFilePath} already exists and is not a SOPS sidecar.`
-        );
-      }
-      await fs.unlink(decryptedFilePath).catch(() => {
-      });
-    }
     const plaintext = await this.runner.decrypt(resolved, fileType);
+    const decryptedFilePath = getDecryptedPath(resolved);
+    const lease = await this.sidecars.acquire({ encryptedPath: resolved, sidecarPath: decryptedFilePath, plaintext, encryptedSha256: sha256(encryptedContent), plaintextSha256: sha256(plaintext) });
     const session = {
       state: "decrypted" /* DECRYPTED */,
       encryptedFilePath: resolved,
@@ -16627,16 +16603,17 @@ var EditSessionRegistry = class {
       decryptedUri: filePathToUri(decryptedFilePath),
       fileType,
       pending: void 0,
-      plaintextSnapshot: plaintext
+      plaintextSnapshot: plaintext,
+      lease
     };
     this.index(session);
     return { session, plaintext };
   }
-  async adopt(decryptedFilePath, encryptedFilePath, encryptedContent, fileType) {
-    const resolvedEnc = path2.resolve(encryptedFilePath);
+  async adopt(lease, encryptedContent, fileType) {
+    const resolvedEnc = path2.resolve(lease.record.encryptedPath);
     const existing = this.byEncrypted.get(resolvedEnc);
     if (existing) return existing;
-    const resolvedDec = path2.resolve(decryptedFilePath);
+    const resolvedDec = path2.resolve(lease.record.sidecarPath);
     const session = {
       state: "decrypted" /* DECRYPTED */,
       encryptedFilePath: resolvedEnc,
@@ -16645,13 +16622,14 @@ var EditSessionRegistry = class {
       decryptedUri: filePathToUri(resolvedDec),
       fileType,
       pending: void 0,
-      plaintextSnapshot: ""
+      plaintextSnapshot: "",
+      lease
     };
     this.index(session);
     return session;
   }
   async save(decryptedUri, plaintext) {
-    const session = this.byDecryptedUri.get(decryptedUri);
+    const session = this.lookupDecrypted(decryptedUri);
     if (!session) return;
     if (session.state === "encrypting" /* ENCRYPTING */) {
       session.pending = plaintext;
@@ -16675,48 +16653,9 @@ var EditSessionRegistry = class {
           `SOPS: ${session.encryptedFilePath} changed on disk; not re-encrypting.`
         );
       }
-      const backupPath = path2.join(
-        os.tmpdir(),
-        `sops-backup-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      );
-      try {
-        await fs.writeFile(backupPath, session.encryptedContent, {
-          encoding: "utf-8",
-          mode: 384
-        });
-        await fs.chmod(backupPath, 384);
-      } catch (error) {
-        await fs.unlink(backupPath).catch(() => {
-        });
-        throw error;
-      }
-      try {
-        await this.runner.reEncrypt(
-          session.encryptedFilePath,
-          current,
-          session.fileType
-        );
-      } catch (error) {
-        try {
-          await fs.copyFile(backupPath, session.encryptedFilePath);
-        } catch (restoreError) {
-          const original = error instanceof Error ? error.message : String(error);
-          const restore = restoreError instanceof Error ? restoreError.message : String(restoreError);
-          throw new Error(
-            `SOPS: re-encrypt failed (${original}); restore failed (${restore}). Ciphertext backup remains at ${backupPath}`
-          );
-        }
-        await fs.unlink(backupPath).catch(() => {
-        });
-        throw error;
-      }
-      await fs.unlink(backupPath).catch(() => {
-      });
-      session.encryptedContent = await fs.readFile(
-        session.encryptedFilePath,
-        "utf-8"
-      );
+      session.encryptedContent = await this.runner.reEncryptStaged(session.encryptedFilePath, session.encryptedContent, current, session.fileType);
       session.plaintextSnapshot = current;
+      await this.sidecars.updateHashes(session.lease, sha256(session.encryptedContent), sha256(current));
       if (session.pending !== void 0) {
         current = session.pending;
         session.pending = void 0;
@@ -16738,18 +16677,8 @@ var EditSessionRegistry = class {
       }
     }
     if (!session) return;
-    await fs.unlink(session.decryptedFilePath).catch(() => {
-    });
+    await this.sidecars.release(session.lease, true);
     this.unindex(session);
-  }
-  async deleteOrphanSidecars(encryptedFilePath, isOpen) {
-    for (const sidecar of possibleSidecarPaths(encryptedFilePath)) {
-      if (!await exists(sidecar)) continue;
-      if (isOpen(sidecar)) continue;
-      if (this.byDecryptedPath.has(path2.resolve(sidecar))) continue;
-      await fs.unlink(sidecar).catch(() => {
-      });
-    }
   }
 };
 
@@ -16841,7 +16770,6 @@ var import_child_process = require("child_process");
 var import_util = require("util");
 var fs3 = __toESM(require("fs/promises"));
 var path4 = __toESM(require("path"));
-var os2 = __toESM(require("os"));
 var execFileAsync = (0, import_util.promisify)(import_child_process.execFile);
 var MAX_BUFFER = 10 * 1024 * 1024;
 var ERROR_CAP = 800;
@@ -16858,8 +16786,11 @@ var SopsRunner = class {
   constructor(settings2) {
     this.settings = settings2;
   }
-  updateSettings(partial) {
-    this.settings = { ...this.settings, ...partial };
+  updateSettings(next) {
+    const changed = this.settings.sopsPath !== next.sopsPath || JSON.stringify(this.settings.env) !== JSON.stringify(next.env) || this.settings.timeoutMs !== next.timeoutMs;
+    this.settings = next;
+    if (changed) this.verifyStatus = void 0;
+    return changed;
   }
   getVerifyStatus() {
     return this.verifyStatus;
@@ -16876,8 +16807,8 @@ var SopsRunner = class {
         maxBuffer: MAX_BUFFER
       });
       this.verifyStatus = "ok";
-    } catch {
-      this.verifyStatus = "missing";
+    } catch (error) {
+      this.verifyStatus = error.code === "ENOENT" ? "missing" : "error";
     }
     return this.verifyStatus;
   }
@@ -16893,12 +16824,16 @@ var SopsRunner = class {
     );
     return stdout;
   }
-  async reEncrypt(filePath, plaintext, _fileType) {
-    const tmpDir = os2.tmpdir();
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const tmpContentFile = path4.join(tmpDir, `sops-content-${id}`);
-    const tmpEditorScript = path4.join(tmpDir, `sops-editor-${id}.sh`);
+  async reEncryptStaged(filePath, expectedCiphertext, plaintext, fileType) {
+    const originalStat = await fs3.stat(filePath);
+    const stageDir = await fs3.mkdtemp(path4.join(path4.dirname(filePath), ".zed-sops-stage-"));
+    await fs3.chmod(stageDir, 448);
+    const staged = path4.join(stageDir, path4.basename(filePath));
+    const tmpContentFile = path4.join(stageDir, "plaintext");
+    const tmpEditorScript = path4.join(stageDir, "editor.sh");
     try {
+      await fs3.writeFile(staged, expectedCiphertext, { encoding: "utf8", mode: originalStat.mode & 511 });
+      await fs3.chmod(staged, originalStat.mode & 511);
       await fs3.writeFile(tmpContentFile, plaintext, {
         encoding: "utf-8",
         mode: 384
@@ -16909,10 +16844,10 @@ cp "$SOPS_ZED_CONTENT" "$1"
 `;
       await fs3.writeFile(tmpEditorScript, editorScript, {
         encoding: "utf-8",
-        mode: 493
+        mode: 448
       });
-      await fs3.chmod(tmpEditorScript, 493);
-      await execFileAsync(this.settings.sopsPath, [filePath], {
+      await fs3.chmod(tmpEditorScript, 448);
+      await execFileAsync(this.settings.sopsPath, ["--input-type", fileType, "--output-type", fileType, staged], {
         env: {
           ...this.env(),
           EDITOR: tmpEditorScript,
@@ -16921,46 +16856,201 @@ cp "$SOPS_ZED_CONTENT" "$1"
         maxBuffer: MAX_BUFFER,
         timeout: this.settings.timeoutMs
       });
+      await this.decrypt(staged, fileType);
+      const current = await fs3.readFile(filePath, "utf8");
+      if (current !== expectedCiphertext) throw new Error(`SOPS: ${filePath} changed on disk; not publishing staged ciphertext.`);
+      const committed = await fs3.readFile(staged, "utf8");
+      await fs3.chmod(staged, originalStat.mode & 511);
+      const handle = await fs3.open(staged, "r");
+      await handle.sync();
+      await handle.close();
+      await fs3.rename(staged, filePath);
+      const dirHandle = await fs3.open(path4.dirname(filePath), "r");
+      await dirHandle.sync();
+      await dirHandle.close();
+      return committed;
     } finally {
-      await fs3.unlink(tmpContentFile).catch(() => {
-      });
-      await fs3.unlink(tmpEditorScript).catch(() => {
+      await fs3.rm(stageDir, { recursive: true, force: true }).catch(() => {
       });
     }
   }
 };
 
-// src/sidecar-open.ts
-var fs4 = __toESM(require("fs/promises"));
-var import_node = __toESM(require_node3());
-function sidecarOpenEdit(decryptedUri) {
-  return {
-    documentChanges: [
-      import_node.CreateFile.create(decryptedUri, {
-        overwrite: true,
-        ignoreIfExists: false
-      })
-    ]
-  };
+// src/zed-client.ts
+var import_url2 = require("url");
+function supportsShowDocument(capabilities) {
+  return capabilities.window?.showDocument?.support === true;
 }
-async function restoreSidecarAfterOpen(filePath, content) {
-  await fs4.writeFile(filePath, content, { encoding: "utf-8", mode: 384 });
-  await fs4.chmod(filePath, 384);
-  const now = /* @__PURE__ */ new Date();
-  await fs4.utimes(filePath, now, now);
-}
-
-// src/session-focus.ts
-var path5 = __toESM(require("path"));
-function shouldKeepSidecarOnFocus(opts) {
-  const focused = path5.resolve(opts.focusedPath);
-  if (focused === path5.resolve(opts.encryptedPath)) return true;
-  if (focused === path5.resolve(opts.decryptedPath)) return true;
-  if (opts.bufferText !== void 0 && opts.bufferText !== opts.diskText) {
-    return true;
+function displayPath(uri) {
+  try {
+    return (0, import_url2.fileURLToPath)(uri);
+  } catch {
+    return uri;
   }
-  return false;
 }
+var ZedClient = class {
+  constructor(connection2, canShowDocument) {
+    this.connection = connection2;
+    this.canShowDocument = canShowDocument;
+  }
+  async openDocument(uri) {
+    if (this.canShowDocument) {
+      try {
+        const result = await this.connection.window.showDocument({
+          uri,
+          external: false,
+          takeFocus: true
+        });
+        if (result.success) return "opened";
+        this.connection.console.warn(`SOPS: Zed declined to open ${uri}`);
+      } catch (error) {
+        this.connection.console.warn(
+          `SOPS: window/showDocument failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    const filePath = displayPath(uri);
+    this.connection.window.showInformationMessage(
+      `SOPS: decrypted file is ready at ${filePath}. Open it manually; this Zed build does not support window/showDocument.`
+    );
+    return "manual";
+  }
+};
+
+// src/sidecar-store.ts
+var fs4 = __toESM(require("fs/promises"));
+var path5 = __toESM(require("path"));
+var import_crypto2 = require("crypto");
+var sha = (value) => (0, import_crypto2.createHash)("sha256").update(value).digest("hex");
+var errno = (e) => e.code;
+var SidecarStore = class {
+  constructor(stateDir, owner) {
+    this.stateDir = stateDir;
+    this.owner = owner;
+  }
+  get sessionsDir() {
+    return path5.join(this.stateDir, "sessions");
+  }
+  canonical(p) {
+    return path5.resolve(p);
+  }
+  lockPath(encryptedPath) {
+    return path5.join(this.sessionsDir, `${sha(this.canonical(encryptedPath))}.lock`);
+  }
+  async readRecord(lockDir) {
+    try {
+      return JSON.parse(await fs4.readFile(path5.join(lockDir, "owner.json"), "utf8"));
+    } catch (e) {
+      if (errno(e) === "ENOENT") return void 0;
+      throw e;
+    }
+  }
+  owns(record) {
+    return record.owner.pid === this.owner.pid && record.owner.nonce === this.owner.nonce;
+  }
+  async live(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (e) {
+      return errno(e) === "EPERM";
+    }
+  }
+  async valid(record, encryptedPath) {
+    let canonicalPath;
+    try {
+      canonicalPath = await fs4.realpath(encryptedPath);
+    } catch {
+      canonicalPath = this.canonical(encryptedPath);
+    }
+    return record?.schema === 1 && this.canonical(record.encryptedPath) === this.canonical(canonicalPath) && typeof record.sidecarPath === "string" && record.owner && typeof record.owner.pid === "number" && typeof record.owner.nonce === "string";
+  }
+  async inspect(encryptedPath) {
+    const lockDir = this.lockPath(encryptedPath);
+    let record;
+    try {
+      record = await this.readRecord(lockDir);
+    } catch {
+      return { kind: "ambiguous", reason: "cannot read owner record" };
+    }
+    if (!record) return { kind: "none" };
+    if (!await this.valid(record, encryptedPath)) return { kind: "ambiguous", reason: "owner record does not match canonical paths" };
+    try {
+      await fs4.access(record.sidecarPath);
+    } catch {
+      return { kind: "ambiguous", reason: "owned sidecar is absent" };
+    }
+    if (this.owns(record)) return { kind: "owned", lease: { lockDir, record } };
+    return await this.live(record.owner.pid) ? { kind: "live-foreign", record } : { kind: "stale", record, lockDir };
+  }
+  async acquire(input) {
+    await fs4.mkdir(this.sessionsDir, { recursive: true, mode: 448 });
+    await fs4.chmod(this.stateDir, 448).catch(() => {
+    });
+    await fs4.chmod(this.sessionsDir, 448);
+    const lockDir = this.lockPath(input.encryptedPath);
+    try {
+      await fs4.mkdir(lockDir, { mode: 448 });
+    } catch (e) {
+      if (errno(e) !== "EEXIST") throw e;
+      const inspection = await this.inspect(input.encryptedPath);
+      if (inspection.kind === "live-foreign") throw new Error("SOPS: file is already edited by another SOPS session.");
+      if (inspection.kind === "owned") throw new Error("SOPS: file is already edited by this SOPS session.");
+      throw new Error("SOPS: sidecar ownership requires explicit recovery.");
+    }
+    let created = false;
+    try {
+      const handle = await fs4.open(input.sidecarPath, "wx", 384);
+      created = true;
+      await handle.writeFile(input.plaintext, "utf8");
+      await handle.sync();
+      await handle.chmod(384);
+      await handle.close();
+      const record = { schema: 1, encryptedPath: await fs4.realpath(input.encryptedPath), sidecarPath: this.canonical(input.sidecarPath), encryptedSha256: input.encryptedSha256, plaintextSha256: input.plaintextSha256, owner: { pid: this.owner.pid, nonce: this.owner.nonce ?? (0, import_crypto2.randomUUID)() }, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+      const tmp = path5.join(lockDir, "owner.json.tmp");
+      await fs4.writeFile(tmp, JSON.stringify(record), { encoding: "utf8", mode: 384 });
+      await fs4.rename(tmp, path5.join(lockDir, "owner.json"));
+      return { lockDir, record };
+    } catch (e) {
+      if (created) await fs4.unlink(input.sidecarPath).catch(() => {
+      });
+      await fs4.rmdir(lockDir).catch(() => {
+      });
+      if (errno(e) === "EEXIST") throw new Error(`SOPS: ${input.sidecarPath} already exists and is not owned by this SOPS session.`);
+      throw e;
+    }
+  }
+  async claimStale(record, lockDir) {
+    if (record.encryptedPath !== this.canonical(record.encryptedPath)) throw new Error("SOPS: invalid stale owner record");
+    const recoveryDir = `${lockDir}.stale-${(0, import_crypto2.randomUUID)()}`;
+    await fs4.rename(lockDir, recoveryDir);
+    await fs4.mkdir(lockDir, { mode: 448 });
+    const next = { ...record, owner: { pid: this.owner.pid, nonce: this.owner.nonce ?? (0, import_crypto2.randomUUID)() }, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+    await fs4.writeFile(path5.join(lockDir, "owner.json"), JSON.stringify(next), { encoding: "utf8", mode: 384 });
+    await fs4.rm(recoveryDir, { recursive: true, force: true });
+    return { lockDir, record: next };
+  }
+  async checked(lease) {
+    const current = await this.readRecord(lease.lockDir);
+    if (!current || !this.owns(current) || current.owner.nonce !== lease.record.owner.nonce) throw new Error("SOPS: sidecar ownership changed.");
+    return current;
+  }
+  async updateHashes(lease, encryptedSha256, plaintextSha256) {
+    const current = await this.checked(lease);
+    const next = { ...current, encryptedSha256, plaintextSha256 };
+    const tmp = path5.join(lease.lockDir, "owner.json.tmp");
+    await fs4.writeFile(tmp, JSON.stringify(next), { encoding: "utf8", mode: 384 });
+    await fs4.rename(tmp, path5.join(lease.lockDir, "owner.json"));
+    lease.record = next;
+  }
+  async release(lease, deleteSidecar) {
+    await this.checked(lease);
+    if (deleteSidecar) await fs4.unlink(lease.record.sidecarPath).catch((e) => {
+      if (errno(e) !== "ENOENT") throw e;
+    });
+    await fs4.rm(lease.lockDir, { recursive: true, force: true });
+  }
+};
 
 // src/index.ts
 var COMMAND_EDIT = "sops.editDecrypted";
@@ -16973,11 +17063,13 @@ process.on("uncaughtException", (error) => {
   }
   process.exit(1);
 });
-var connection = (0, import_node2.createConnection)(import_node2.ProposedFeatures.all);
-var documents = new import_node2.TextDocuments(TextDocument);
+var connection = (0, import_node.createConnection)(import_node.ProposedFeatures.all);
+var documents = new import_node.TextDocuments(TextDocument);
 var settings = DEFAULT_SOPS_SETTINGS;
 var sopsRunner = new SopsRunner(settings);
-var registry = new EditSessionRegistry(sopsRunner);
+var sidecars = new SidecarStore(path6.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: (0, import_crypto3.randomUUID)() });
+var registry = new EditSessionRegistry(sopsRunner, sidecars);
+var zedClient = new ZedClient(connection, false);
 var workspaceFolders = [];
 var verifyPromise = Promise.resolve("ok");
 process.on("unhandledRejection", (reason) => {
@@ -16986,29 +17078,25 @@ process.on("unhandledRejection", (reason) => {
 });
 function uriToFilePath(uri) {
   if (uri.startsWith("file:")) {
-    return (0, import_url2.fileURLToPath)(uri);
+    return (0, import_url3.fileURLToPath)(uri);
   }
   return uri;
 }
 function filePathToUri2(filePath) {
-  return (0, import_url2.pathToFileURL)(filePath).toString();
+  return (0, import_url3.pathToFileURL)(filePath).toString();
 }
 function line0Range(text) {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  return import_node2.Range.create(import_node2.Position.create(0, 0), import_node2.Position.create(0, firstLine.length));
+  return import_node.Range.create(import_node.Position.create(0, 0), import_node.Position.create(0, firstLine.length));
 }
 function infoDiagnostic(code, message, text) {
   return {
     range: line0Range(text),
     message,
-    severity: import_node2.DiagnosticSeverity.Information,
+    severity: import_node.DiagnosticSeverity.Information,
     source: "sops",
     code
   };
-}
-function isSidecarOpen(sidecarPath) {
-  const uri = filePathToUri2(sidecarPath);
-  return documents.get(uri) !== void 0;
 }
 async function publishCiphertextDiagnostics(uri, text, sidecarBasename) {
   if (sopsRunner.getVerifyStatus() === "missing") {
@@ -17046,78 +17134,27 @@ function publishSidecarManaged(uri, text) {
     ]
   });
 }
-async function openDecryptedFile(decryptedUri, decryptedFilePath, content) {
-  try {
-    await fs5.unlink(decryptedFilePath).catch(() => {
-    });
-    const result = await connection.workspace.applyEdit(
-      sidecarOpenEdit(decryptedUri)
-    );
-    await restoreSidecarAfterOpen(decryptedFilePath, content);
-    return result.applied;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    connection.console.error(`SOPS: Failed to open sidecar via applyEdit: ${msg}`);
-    try {
-      await restoreSidecarAfterOpen(decryptedFilePath, content);
-    } catch {
-    }
-    return false;
-  }
-}
-async function evictSessionsNotFocusedOn(focusedPath) {
-  for (const session of registry.list()) {
-    const doc = documents.get(session.decryptedUri) ?? documents.get(filePathToUri2(session.decryptedFilePath));
-    let disk = "";
-    try {
-      disk = await fs5.readFile(session.decryptedFilePath, "utf-8");
-    } catch {
-      disk = "";
-    }
-    if (shouldKeepSidecarOnFocus({
-      focusedPath,
-      encryptedPath: session.encryptedFilePath,
-      decryptedPath: session.decryptedFilePath,
-      bufferText: doc?.getText(),
-      diskText: disk
-    })) {
-      continue;
-    }
-    try {
-      await connection.workspace.applyEdit({
-        documentChanges: [
-          import_node2.DeleteFile.create(session.decryptedUri, { ignoreIfNotExists: true })
-        ]
-      });
-    } catch {
-    }
-    await registry.close(session.decryptedUri);
-  }
+async function openDecryptedFile(decryptedUri) {
+  await zedClient.openDocument(decryptedUri);
 }
 async function startEditSession(encryptedUri) {
   const encryptedPath = uriToFilePath(encryptedUri);
-  await evictSessionsNotFocusedOn(encryptedPath);
   const existing = registry.getByEncryptedPath(encryptedPath);
   if (existing) {
-    let plaintext = "";
     try {
-      plaintext = await fs5.readFile(existing.decryptedFilePath, "utf-8");
-    } catch {
-      plaintext = "";
-    }
-    if (!plaintext) {
-      await registry.close(existing.decryptedUri);
-    } else {
-      const opened = await openDecryptedFile(
-        existing.decryptedUri,
-        existing.decryptedFilePath,
-        plaintext
-      );
-      if (!opened) {
-        connection.window.showInformationMessage(
-          `SOPS: decrypted to ${existing.decryptedFilePath} \u2014 open it to edit.`
+      await fs5.stat(existing.decryptedFilePath);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        await registry.close(existing.decryptedUri);
+      } else {
+        connection.window.showErrorMessage(
+          formatSopsError(error, settings.timeoutMs)
         );
+        return;
       }
+    }
+    if (registry.getByEncryptedPath(encryptedPath)) {
+      await openDecryptedFile(existing.decryptedUri);
       return;
     }
   }
@@ -17130,21 +17167,33 @@ async function startEditSession(encryptedUri) {
   }
   const fileType = detectFileType(encryptedPath);
   try {
+    const ownership = await sidecars.inspect(encryptedPath);
+    if (ownership.kind === "live-foreign") {
+      connection.window.showErrorMessage("SOPS: file is already edited by another SOPS session.");
+      return;
+    }
+    if (ownership.kind === "stale") {
+      const choice = await connection.window.showWarningMessage(
+        `SOPS: a previous session left ${ownership.record.sidecarPath}.`,
+        { title: "Resume decrypted file" },
+        { title: "Discard decrypted file" },
+        { title: "Cancel" }
+      );
+      if (!choice || choice.title === "Cancel") return;
+      const lease = await sidecars.claimStale(ownership.record, ownership.lockDir);
+      if (choice.title === "Resume decrypted file") {
+        const session2 = await registry.adopt(lease, encryptedContent, fileType);
+        await openDecryptedFile(session2.decryptedUri);
+        return;
+      }
+      await sidecars.release(lease, true);
+    }
     const { session, plaintext } = await registry.start(
       encryptedPath,
       encryptedContent,
       fileType
     );
-    const opened = await openDecryptedFile(
-      session.decryptedUri,
-      session.decryptedFilePath,
-      plaintext
-    );
-    if (!opened) {
-      connection.window.showInformationMessage(
-        `SOPS: decrypted to ${session.decryptedFilePath} \u2014 open it to edit.`
-      );
-    }
+    await openDecryptedFile(session.decryptedUri);
     const cipherDoc = documents.get(encryptedUri);
     await publishCiphertextDiagnostics(
       encryptedUri,
@@ -17162,9 +17211,14 @@ async function startEditSession(encryptedUri) {
   }
 }
 connection.onInitialize((params) => {
+  zedClient = new ZedClient(
+    connection,
+    supportsShowDocument(params.capabilities)
+  );
   settings = parseSopsSettings(params.initializationOptions);
   sopsRunner = new SopsRunner(settings);
-  registry = new EditSessionRegistry(sopsRunner);
+  sidecars = new SidecarStore(settings.stateDir || path6.join(process.cwd(), ".zed-sops-state"), { pid: process.pid, nonce: (0, import_crypto3.randomUUID)() });
+  registry = new EditSessionRegistry(sopsRunner, sidecars);
   workspaceFolders = (params.workspaceFolders ?? []).map(
     (folder) => uriToFilePath(folder.uri)
   );
@@ -17172,7 +17226,7 @@ connection.onInitialize((params) => {
     capabilities: {
       textDocumentSync: {
         openClose: true,
-        change: import_node2.TextDocumentSyncKind.Full,
+        change: import_node.TextDocumentSyncKind.Full,
         save: { includeText: true }
       },
       codeActionProvider: true,
@@ -17186,6 +17240,8 @@ connection.onInitialized(() => {
       connection.window.showWarningMessage(
         "SOPS binary not found. Install sops and ensure it is on PATH, or set lsp.sops-lsp.settings.sopsPath."
       );
+    } else if (status === "error") {
+      connection.window.showWarningMessage("SOPS verification failed; check sopsPath and settings.");
     } else {
       connection.console.log("SOPS LSP initialized");
     }
@@ -17222,10 +17278,10 @@ connection.onCodeAction((params) => {
   const encrypted = !!doc && isSopsEncrypted(doc.getText(), detectFileType(filePath));
   if (!fromDiag && !encrypted) return [];
   return [
-    import_node2.CodeAction.create(
+    import_node.CodeAction.create(
       "SOPS: Edit decrypted",
-      import_node2.Command.create("SOPS: Edit decrypted", COMMAND_EDIT, params.textDocument.uri),
-      import_node2.CodeActionKind.QuickFix
+      import_node.Command.create("SOPS: Edit decrypted", COMMAND_EDIT, params.textDocument.uri),
+      import_node.CodeActionKind.QuickFix
     )
   ];
 });
@@ -17240,47 +17296,19 @@ documents.onDidOpen(async (event) => {
   const uri = document.uri;
   const filePath = uriToFilePath(uri);
   if (isDecryptedFile(filePath)) {
-    await evictSessionsNotFocusedOn(filePath);
     if (registry.getByDecryptedUri(uri) ?? registry.getByDecryptedPath(filePath)) {
       publishSidecarManaged(uri, document.getText());
-      return;
-    }
-    const encryptedFilePath = getEncryptedPath(filePath);
-    try {
-      const encryptedContent = await fs5.readFile(encryptedFilePath, "utf-8");
-      const fileType2 = detectFileType(encryptedFilePath);
-      if (!isSopsEncrypted(encryptedContent, fileType2)) return;
-      await registry.adopt(
-        filePath,
-        encryptedFilePath,
-        encryptedContent,
-        fileType2
-      );
-      publishSidecarManaged(uri, document.getText());
-      const encUri = filePathToUri2(encryptedFilePath);
-      const encDoc = documents.get(encUri);
-      if (encDoc) {
-        await publishCiphertextDiagnostics(
-          encUri,
-          encDoc.getText(),
-          path6.basename(filePath)
-        );
-      }
-    } catch {
     }
     return;
   }
   const content = document.getText();
   const fileType = detectFileType(filePath);
   if (!isSopsEncrypted(content, fileType)) {
-    await evictSessionsNotFocusedOn(filePath);
     connection.sendDiagnostics({ uri, diagnostics: [] });
     return;
   }
   await verifyPromise;
   await publishCiphertextDiagnostics(uri, content);
-  await evictSessionsNotFocusedOn(filePath);
-  await registry.deleteOrphanSidecars(filePath, isSidecarOpen);
   const session = registry.getByEncryptedPath(filePath);
   if (session) {
     try {
@@ -17312,11 +17340,11 @@ documents.onDidOpen(async (event) => {
 });
 documents.onDidSave(async (event) => {
   const { document } = event;
-  const ctx = registry.getByDecryptedUri(document.uri);
+  const ctx = registry.getByDecryptedUri(document.uri) ?? registry.lookupDecrypted(document.uri);
   if (!ctx) return;
-  const plaintext = document.getText() ?? await fs5.readFile(ctx.decryptedFilePath, "utf-8");
+  const plaintext = document.getText();
   try {
-    await registry.save(document.uri, plaintext);
+    await registry.save(ctx.decryptedUri, plaintext);
     connection.console.log(`SOPS: Re-encrypted ${ctx.encryptedFilePath}`);
   } catch (error) {
     const msg = formatSopsError(error, settings.timeoutMs);

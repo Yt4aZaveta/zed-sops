@@ -24,6 +24,7 @@ export interface SopsSettings {
   autoEdit: boolean;
   autoEditAll: boolean;
   keyFile: string;
+  stateDir: string;
   timeoutMs: number;
 }
 
@@ -33,6 +34,7 @@ export const DEFAULT_SOPS_SETTINGS: SopsSettings = {
   autoEdit: true,
   autoEditAll: false,
   keyFile: "",
+  stateDir: "",
   timeoutMs: 60_000,
 };
 
@@ -49,9 +51,12 @@ export function parseSopsSettings(
             (entry): entry is [string, string] => typeof entry[1] === "string"
           )
         )
-      : defaults.env;
+      : { ...defaults.env };
   const keyFile =
     typeof obj.keyFile === "string" ? obj.keyFile : defaults.keyFile;
+  if (obj.env === undefined && env.SOPS_AGE_SSH_PRIVATE_KEY_FILE === defaults.keyFile) {
+    delete env.SOPS_AGE_SSH_PRIVATE_KEY_FILE;
+  }
   const mergedEnv = { ...env };
   if (
     keyFile.length > 0 &&
@@ -69,6 +74,8 @@ export function parseSopsSettings(
     autoEditAll:
       typeof obj.autoEditAll === "boolean" ? obj.autoEditAll : defaults.autoEditAll,
     keyFile,
+    stateDir:
+      typeof obj.stateDir === "string" ? obj.stateDir : defaults.stateDir,
     timeoutMs:
       typeof obj.timeoutMs === "number" && Number.isFinite(obj.timeoutMs) && obj.timeoutMs > 0
         ? obj.timeoutMs
@@ -78,8 +85,33 @@ export function parseSopsSettings(
 
 export interface SopsRunnerLike {
   decrypt(filePath: string, fileType: SopsFileType): Promise<string>;
-  reEncrypt(filePath: string, plaintext: string, fileType: SopsFileType): Promise<void>;
+  reEncryptStaged(filePath: string, expectedCiphertext: string, plaintext: string, fileType: SopsFileType): Promise<string>;
 }
+
+export interface SidecarOwner { pid: number; nonce: string; }
+export interface SidecarRecord {
+  schema: 1;
+  encryptedPath: string;
+  sidecarPath: string;
+  encryptedSha256: string;
+  plaintextSha256: string;
+  owner: SidecarOwner;
+  createdAt: string;
+}
+export interface SidecarLease { lockDir: string; record: SidecarRecord; }
+export interface AcquireSidecarInput {
+  encryptedPath: string;
+  sidecarPath: string;
+  plaintext: string;
+  encryptedSha256: string;
+  plaintextSha256: string;
+}
+export type SidecarInspection =
+  | { kind: "none" }
+  | { kind: "owned"; lease: SidecarLease }
+  | { kind: "live-foreign"; record: SidecarRecord }
+  | { kind: "stale"; record: SidecarRecord; lockDir: string }
+  | { kind: "ambiguous"; reason: string };
 
 export interface EditSession {
   state: FileState;
@@ -90,4 +122,5 @@ export interface EditSession {
   fileType: SopsFileType;
   pending: string | undefined;
   plaintextSnapshot: string;
+  lease: SidecarLease;
 }

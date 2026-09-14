@@ -34,8 +34,11 @@ Edit [SOPS](https://github.com/getsops/sops)-encrypted YAML, JSON, and TOML in Z
 
 1. Open a SOPS-encrypted YAML/JSON/TOML file. A diagnostic appears: `SOPS encrypted`.
 2. Run the code action **SOPS: Edit decrypted**, or let auto-edit start a session (`autoEditAll`, or a matching `.sops.yaml` `creation_rules` entry).
-3. Edit the sidecar tab (`elk.yaml` → `.decrypted.elk.yaml`). Save it to re-encrypt the original. Close it to delete the plaintext sidecar. Opening any other file (except this ciphertext/sidecar pair) deletes the sidecar unless it has unsaved edits. Switching between already-open tabs may not notify the LSP; opening a file does.
-4. The ciphertext tab stays open; that is a Zed limitation, not a leak of the edit session.
+3. Edit the adjacent `.decrypted.<basename>` sidecar. Supported Zed builds open and focus it through LSP `window/showDocument`; stable 1.19.2 and preview 1.20.0 show the filesystem path for manual opening.
+4. Save the sidecar to re-encrypt the original. Only closing a managed sidecar removes it; opening other files does not end the session, and multiple sessions may coexist.
+5. Crash leftovers prompt for explicit recovery and are never silently deleted. Sidecars are created with mode `0600`.
+
+`keyFile` supplies `SOPS_AGE_SSH_PRIVATE_KEY_FILE` unless the explicit `env` entry supplies that variable. The `.decrypted.*` gitignore patterns remain defense in depth.
 
 ## Gitignore
 

@@ -15,6 +15,72 @@ async function writeFakeSops(
   return bin;
 }
 
+async function writeTransactionalFakeSops(dir: string): Promise<string> {
+  const bin = path.join(dir, "transactional-sops");
+  await writeFile(
+    bin,
+    `#!/bin/sh
+set -eu
+last=""
+for arg in "$@"; do last="$arg"; done
+printf '%s\\n' "$@" >> "$FAKE_SOPS_LOG"
+
+if [ "\${1:-}" = "--version" ]; then
+  echo "sops 3.13.3"
+  exit 0
+fi
+
+if [ "\${1:-}" = "decrypt" ]; then
+  if grep -q '^INVALID' "$last"; then
+    echo "invalid staged ciphertext" >&2
+    exit 23
+  fi
+  printf 'plain: true\\n'
+  exit 0
+fi
+
+if [ "\${FAKE_SOPS_MODE:-success}" = "fail" ]; then
+  echo "forced edit failure" >&2
+  exit 17
+fi
+
+edit_target="$last.plaintext-test"
+printf 'old plaintext\\n' > "$edit_target"
+"$EDITOR" "$edit_target"
+
+if [ "\${FAKE_SOPS_MODE:-success}" = "stale" ]; then
+  printf 'external ciphertext\\n' > "$FAKE_ORIGINAL"
+fi
+if [ "\${FAKE_SOPS_MODE:-success}" = "invalid" ]; then
+  printf 'INVALID\\n' > "$last"
+else
+  printf 'value: ENC[AES256_GCM,data:new]\\nsops:\\n    version: 3.13.3\\n' > "$last"
+fi
+`,
+    0o755
+  );
+  return bin;
+}
+
+async function transactionFixture(mode = "success") {
+  const dir = await makeTempDir();
+  const originalPath = path.join(dir, "secrets.yaml");
+  const original = "value: ENC[AES256_GCM,data:old]\nsops:\n    version: 3.13.3\n";
+  const logPath = path.join(dir, "sops.log");
+  await writeFile(originalPath, original, 0o640);
+  const sopsPath = await writeTransactionalFakeSops(dir);
+  const runner = new SopsRunner({
+    ...DEFAULT_SOPS_SETTINGS,
+    sopsPath,
+    env: {
+      FAKE_SOPS_MODE: mode,
+      FAKE_SOPS_LOG: logPath,
+      FAKE_ORIGINAL: originalPath,
+    },
+  });
+  return { dir, originalPath, original, logPath, runner };
+}
+
 describe("formatSopsError", () => {
   it("prefers trimmed stderr and caps at 800 chars", () => {
     const stderr = `${"x".repeat(900)}\n`;
@@ -68,35 +134,62 @@ describe("SopsRunner.decrypt timeout", () => {
   });
 });
 
-describe("SopsRunner.reEncrypt EDITOR", () => {
-  it("uses SOPS_ZED_CONTENT env and does not interpolate the plaintext path into the script", async () => {
-    const dir = await makeTempDir();
-    const seen = path.join(dir, "seen.txt");
-    const target = path.join(dir, "secrets.yaml");
-    await writeFile(target, "cipher\n");
-    const bin = await writeFakeSops(
-      dir,
-      `
-echo "EDITOR=$EDITOR" > "${seen}"
-echo "CONTENT=$SOPS_ZED_CONTENT" >> "${seen}"
-cat "$EDITOR" >> "${seen}"
-# emulate sops invoking EDITOR on a temp file
-tmp="${dir}/edit-target"
-echo old > "$tmp"
-"$EDITOR" "$tmp"
-cp "$tmp" "$3" 2>/dev/null || true
-echo encrypted > "${target}"
-`
+describe("SopsRunner.reEncryptStaged", () => {
+  it("runs edit mode on staging and commits validated ciphertext", async () => {
+    const f = await transactionFixture();
+    const committed = await f.runner.reEncryptStaged(
+      f.originalPath,
+      f.original,
+      "plain: changed\n",
+      "yaml"
     );
-    const runner = new SopsRunner({
-      ...DEFAULT_SOPS_SETTINGS,
-      sopsPath: bin,
-    });
-    await runner.reEncrypt(target, "new-plain\n", "yaml");
-    const seenText = await fs.readFile(seen, "utf-8");
-    assert.match(seenText, /CONTENT=\//);
-    assert.match(seenText, /cp "\$SOPS_ZED_CONTENT" "\$1"/);
-    assert.doesNotMatch(seenText, /cp "\/tmp\/sops-content-/);
-    assert.equal(await fs.readFile(target, "utf-8"), "encrypted\n");
+    const calls = await fs.readFile(f.logPath, "utf8");
+    const callLines = calls.split("\n");
+    const editTarget = callLines.find((line) => line.includes(".zed-sops-stage-"));
+    assert.ok(editTarget);
+    assert.notEqual(editTarget, f.originalPath);
+    assert.deepEqual(callLines.slice(0, 5), [
+      "--input-type",
+      "yaml",
+      "--output-type",
+      "yaml",
+      editTarget,
+    ]);
+    assert.equal(await fs.readFile(f.originalPath, "utf8"), committed);
+    assert.match(committed, /ENC\[AES256_GCM/);
+    assert.equal((await fs.stat(f.originalPath)).mode & 0o777, 0o640);
+    assert.deepEqual(
+      (await fs.readdir(f.dir)).filter((name) => name.startsWith(".zed-sops-stage-")),
+      []
+    );
   });
+
+  for (const testCase of [
+    { mode: "fail", pattern: /forced edit failure/ },
+    { mode: "invalid", pattern: /invalid staged ciphertext/ },
+    { mode: "stale", pattern: /changed on disk; not publishing/ },
+  ] as const) {
+    it(`leaves the original safe when mode is ${testCase.mode}`, async () => {
+      const f = await transactionFixture(testCase.mode);
+      await assert.rejects(
+        () => f.runner.reEncryptStaged(
+          f.originalPath,
+          f.original,
+          "plain: changed\n",
+          "yaml"
+        ),
+        testCase.pattern
+      );
+      const onDisk = await fs.readFile(f.originalPath, "utf8");
+      if (testCase.mode === "stale") {
+        assert.equal(onDisk, "external ciphertext\n");
+      } else {
+        assert.equal(onDisk, f.original);
+      }
+      assert.deepEqual(
+        (await fs.readdir(f.dir)).filter((name) => name.startsWith(".zed-sops-stage-")),
+        []
+      );
+    });
+  }
 });
